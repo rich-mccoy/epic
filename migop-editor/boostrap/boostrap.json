@@ -1,0 +1,12 @@
+{
+  "version": "2.0-test",
+  "title": "MIGOP Editor Bootstrap Test",
+  "baseUrl": "https://sites.google.com/view/migopeditor/home/",
+  "modules": [
+    {
+      "name": "bootstrap-test",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/refs/heads/main/migop-editor/boostrap/bootstrap.js",
+      "priority": 10
+    }
+  ]
+}
