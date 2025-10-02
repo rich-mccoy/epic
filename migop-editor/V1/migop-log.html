@@ -1,0 +1,190 @@
+<script>
+/**
+ * migop-log.html - Comprehensive Logging System
+ * Depends on: migop-base.html
+ */
+(function() {
+  'use strict';
+  
+  if (!window.MIGOP || !window.MIGOP.Base) {
+    throw new Error('migop-log.html requires migop-base.html');
+  }
+  
+  var Base = window.MIGOP.Base;
+  var CONSTANTS = Base.CONSTANTS;
+  
+  function BrowserLogger() {
+    this.sessionId = Base.generateId();
+    this.startTime = new Date();
+    this.logs = [];
+    this.maxLogs = 2000;
+    this.bridgeEnabled = true;
+    
+    this.log(CONSTANTS.LOG_LEVELS.INFO, 'BrowserLogger', 'Logger initialized', {
+      sessionId: this.sessionId,
+      startTime: this.startTime.toISOString()
+    });
+  }
+  
+  BrowserLogger.prototype.log = function(level, component, message, data) {
+    var timestamp = new Date();
+    var elapsed = timestamp - this.startTime;
+    
+    var logEntry = {
+      id: Base.generateId(),
+      timestamp: timestamp.toISOString(),
+      elapsed: elapsed,
+      level: level,
+      component: component,
+      message: message,
+      data: data || null,
+      sessionId: this.sessionId
+    };
+    
+    this.logs.push(logEntry);
+    if (this.logs.length > this.maxLogs) this.logs.shift();
+    
+    var displayMessage = this.formatLogEntry(logEntry);
+    this.displayLog(displayMessage);
+    
+    if (this.bridgeEnabled) this.bridgeToAppsScript(logEntry);
+    
+    console.log('[MIGOP7][' + level + '][' + component + '] ' + message, data || '');
+    return logEntry;
+  };
+  
+  BrowserLogger.prototype.formatLogEntry = function(logEntry) {
+    var displayMessage = '[' + Base.formatElapsed(logEntry.elapsed) + '][' + 
+                        logEntry.level + '][' + logEntry.component + '] ' + logEntry.message;
+    
+    if (logEntry.data) {
+      if (typeof logEntry.data === 'object') {
+        try {
+          displayMessage += '\nDATA: ' + JSON.stringify(logEntry.data, null, 2);
+        } catch (e) {
+          displayMessage += '\nDATA: [stringify failed]';
+        }
+      } else {
+        displayMessage += '\nDATA: ' + logEntry.data;
+      }
+    }
+    return displayMessage;
+  };
+  
+  BrowserLogger.prototype.displayLog = function(message) {
+    var logEl = document.getElementById('log');
+    if (logEl) {
+      logEl.textContent += message + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  };
+  
+  BrowserLogger.prototype.bridgeToAppsScript = function(logEntry) {
+    if (typeof google !== 'undefined' && google.script && google.script.run && google.script.run.logFromBrowser) {
+      try {
+        var bridgeMessage = '[' + logEntry.level + '][' + logEntry.component + '] ' + logEntry.message;
+        google.script.run.logFromBrowser(bridgeMessage);
+      } catch (error) {
+        console.warn('Failed to bridge log to Apps Script:', error);
+      }
+    }
+  };
+  
+  BrowserLogger.prototype.error = function(component, message, error) {
+    var errorData = {
+      message: error.message || 'Unknown error',
+      stack: error.stack || 'No stack trace',
+      name: error.name || 'Error'
+    };
+    return this.log(CONSTANTS.LOG_LEVELS.ERROR, component, message, errorData);
+  };
+  
+  BrowserLogger.prototype.warn = function(component, message, data) {
+    return this.log(CONSTANTS.LOG_LEVELS.WARN, component, message, data);
+  };
+  
+  BrowserLogger.prototype.info = function(component, message, data) {
+    return this.log(CONSTANTS.LOG_LEVELS.INFO, component, message, data);
+  };
+  
+  BrowserLogger.prototype.debug = function(component, message, data) {
+    return this.log(CONSTANTS.LOG_LEVELS.DEBUG, component, message, data);
+  };
+  
+  BrowserLogger.prototype.getAllLogs = function() {
+    return Base.deepClone(this.logs);
+  };
+  
+  BrowserLogger.prototype.getLogsAsText = function() {
+    var self = this;
+    return this.logs.map(function(log) {
+      return self.formatLogEntry(log);
+    }).join('\n\n');
+  };
+  
+  BrowserLogger.prototype.clear = function() {
+    this.logs = [];
+    var logEl = document.getElementById('log');
+    if (logEl) logEl.textContent = 'Log cleared...\n';
+    this.info('BrowserLogger', 'Logs cleared');
+  };
+  
+  BrowserLogger.prototype.getStats = function() {
+    var stats = {
+      totalLogs: this.logs.length,
+      sessionDuration: new Date() - this.startTime,
+      byLevel: {},
+      sessionId: this.sessionId
+    };
+    
+    for (var level in CONSTANTS.LOG_LEVELS) {
+      stats.byLevel[CONSTANTS.LOG_LEVELS[level]] = this.logs.filter(function(log) {
+        return log.level === CONSTANTS.LOG_LEVELS[level];
+      }).length;
+    }
+    
+    return stats;
+  };
+  
+  var globalLogger = null;
+  
+  function getLogger() {
+    if (!globalLogger) {
+      globalLogger = new BrowserLogger();
+    }
+    return globalLogger;
+  }
+  
+  window.MIGOP.Log = {
+    BrowserLogger: BrowserLogger,
+    getLogger: getLogger,
+    
+    error: function(component, message, error) {
+      return getLogger().error(component, message, error);
+    },
+    warn: function(component, message, data) {
+      return getLogger().warn(component, message, data);
+    },
+    info: function(component, message, data) {
+      return getLogger().info(component, message, data);
+    },
+    debug: function(component, message, data) {
+      return getLogger().debug(component, message, data);
+    },
+    clear: function() {
+      return getLogger().clear();
+    },
+    getAllLogs: function() {
+      return getLogger().getAllLogs();
+    },
+    getLogsAsText: function() {
+      return getLogger().getLogsAsText();
+    },
+    getStats: function() {
+      return getLogger().getStats();
+    }
+  };
+  
+  console.log('[MIGOP] migop-log.html loaded successfully');
+})();
+</script>
