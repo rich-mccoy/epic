@@ -1,0 +1,207 @@
+<script>
+/**
+ * migop-detection.html - DOCX Suggestion Detection
+ * Depends on: migop-base.html, migop-log.html
+ */
+(function() {
+  'use strict';
+  
+  if (!window.MIGOP || !window.MIGOP.Base || !window.MIGOP.Log) {
+    throw new Error('migop-detection.html requires migop-base.html and migop-log.html');
+  }
+  
+  var Base = window.MIGOP.Base;
+  var Log = window.MIGOP.Log;
+  var CONSTANTS = Base.CONSTANTS;
+  
+  function DocxSuggestionDetector(logger) {
+    this.logger = logger || Log.getLogger();
+    this.patterns = {
+      insertions: /<w:ins[^>]*w:author="([^"]*)"[^>]*w:date="([^"]*)"[^>]*>([\s\S]*?)<\/w:ins>/g,
+      deletions: /<w:del[^>]*w:author="([^"]*)"[^>]*w:date="([^"]*)"[^>]*>([\s\S]*?)<\/w:del>/g
+    };
+    
+    this.stats = {
+      totalProcessed: 0,
+      insertionsFound: 0,
+      deletionsFound: 0,
+      errors: 0
+    };
+    
+    this.logger.info('DocxSuggestionDetector', 'Detector initialized');
+  }
+  
+  DocxSuggestionDetector.prototype.extractSuggestions = function(xmlContent) {
+    this.logger.info('DocxSuggestionDetector', 'Starting extraction', {
+      xmlLength: xmlContent.length
+    });
+    
+    var suggestions = [];
+    this.stats.totalProcessed++;
+    
+    try {
+      var insertions = this.extractInsertions(xmlContent);
+      suggestions = suggestions.concat(insertions);
+      this.stats.insertionsFound += insertions.length;
+      
+      var deletions = this.extractDeletions(xmlContent);
+      suggestions = suggestions.concat(deletions);
+      this.stats.deletionsFound += deletions.length;
+      
+      this.logger.info('DocxSuggestionDetector', 'Extraction completed', {
+        totalSuggestions: suggestions.length,
+        insertions: insertions.length,
+        deletions: deletions.length
+      });
+      
+      return suggestions;
+      
+    } catch (error) {
+      this.stats.errors++;
+      this.logger.error('DocxSuggestionDetector', 'Extraction failed', error);
+      throw error;
+    }
+  };
+  
+  DocxSuggestionDetector.prototype.extractInsertions = function(xmlContent) {
+    this.logger.debug('DocxSuggestionDetector', 'Extracting insertions');
+    
+    var insertions = [];
+    var regex = this.patterns.insertions;
+    var match;
+    var matchCount = 0;
+    
+    regex.lastIndex = 0;
+    
+    while ((match = regex.exec(xmlContent)) !== null) {
+      matchCount++;
+      var fullMatch = match[0];
+      var author = match[1];
+      var date = match[2];
+      var innerXml = match[3];
+      
+      this.logger.debug('DocxSuggestionDetector', 'Processing insertion ' + matchCount, {
+        author: author,
+        date: date,
+        innerXmlLength: innerXml.length
+      });
+      
+      var text = this.extractTextFromXml(innerXml);
+      
+      if (text.trim()) {
+        var suggestion = Base.Suggestion.createInsertion(text, author, date, {
+          fullXml: fullMatch,
+          innerXml: innerXml,
+          matchIndex: matchCount
+        });
+        
+        insertions.push(suggestion);
+        this.logger.debug('DocxSuggestionDetector', 'Insertion ' + matchCount + ' processed', {
+          text: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+          textLength: text.length
+        });
+      }
+    }
+    
+    regex.lastIndex = 0;
+    
+    this.logger.info('DocxSuggestionDetector', 'Insertion extraction completed', {
+      totalMatches: matchCount,
+      validInsertions: insertions.length
+    });
+    
+    return insertions;
+  };
+  
+  DocxSuggestionDetector.prototype.extractDeletions = function(xmlContent) {
+    this.logger.debug('DocxSuggestionDetector', 'Extracting deletions');
+    
+    var deletions = [];
+    var regex = this.patterns.deletions;
+    var match;
+    var matchCount = 0;
+    
+    regex.lastIndex = 0;
+    
+    while ((match = regex.exec(xmlContent)) !== null) {
+      matchCount++;
+      var fullXml = match[0];
+      var author = match[1];
+      var date = match[2];
+      var innerXml = match[3];
+      
+      this.logger.debug('DocxSuggestionDetector', 'Processing deletion ' + matchCount, {
+        author: author,
+        date: date,
+        innerXmlLength: innerXml.length
+      });
+      
+      var text = this.extractTextFromXml(innerXml);
+      
+      if (text.trim()) {
+        var suggestion = Base.Suggestion.createDeletion(text, {
+          fullXml: fullXml,
+          innerXml: innerXml,
+          matchIndex: matchCount
+        });
+        
+        deletions.push(suggestion);
+        this.logger.debug('DocxSuggestionDetector', 'Deletion ' + matchCount + ' processed', {
+          text: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
+          textLength: text.length
+        });
+      }
+    }
+    
+    regex.lastIndex = 0;
+    
+    this.logger.info('DocxSuggestionDetector', 'Deletion extraction completed', {
+      totalMatches: matchCount,
+      validDeletions: deletions.length
+    });
+    
+    return deletions;
+  };
+  
+  DocxSuggestionDetector.prototype.extractTextFromXml = function(xmlContent) {
+    var text = xmlContent.replace(/<[^>]*>/g, '');
+    text = text.replace(/&lt;/g, '<')
+               .replace(/&gt;/g, '>')
+               .replace(/&amp;/g, '&')
+               .replace(/&quot;/g, '"')
+               .replace(/&apos;/g, "'");
+    return text;
+  };
+  
+  DocxSuggestionDetector.prototype.getStats = function() {
+    return Base.deepClone(this.stats);
+  };
+  
+  DocxSuggestionDetector.prototype.resetStats = function() {
+    this.stats = {
+      totalProcessed: 0,
+      insertionsFound: 0,
+      deletionsFound: 0,
+      errors: 0
+    };
+    this.logger.info('DocxSuggestionDetector', 'Statistics reset');
+  };
+  
+  function DetectorFactory() {}
+  
+  DetectorFactory.createStandard = function(logger) {
+    return new DocxSuggestionDetector(logger);
+  };
+  
+  window.MIGOP.Detection = {
+    DocxSuggestionDetector: DocxSuggestionDetector,
+    DetectorFactory: DetectorFactory,
+    
+    createDetector: function(type, logger) {
+      return DetectorFactory.createStandard(logger);
+    }
+  };
+  
+  console.log('[MIGOP] migop-detection.html loaded successfully');
+})();
+</script>
