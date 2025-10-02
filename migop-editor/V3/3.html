@@ -1,0 +1,851 @@
+
+ 	
+Home
+html 3
+<script>
+
+/**
+
+ * ============================================================================
+
+ * MIGOP EDITOR 8.0 - WORKFLOW UI MODULE
+
+ * ============================================================================
+
+ * 
+
+ * PURPOSE:
+
+ * This module handles all UI rendering and styling for the new workflow-based
+
+ * MIGOP Editor interface. It provides a visual progress tracker with pause
+
+ * points for manual document versioning.
+
+ * 
+
+ * ============================================================================
+
+ * UI LAYOUT SPECIFICATION
+
+ * ============================================================================
+
+ * 
+
+ * 1. TOP BANNER (Fixed Header)
+
+ *    - MIGOP logo graphic (red/white branding)
+
+ *    - Title: "MIGOP Editor"
+
+ *    - Background: Linear gradient (MIGOP red variations)
+
+ *    - Modern shadow/depth effect
+
+ * 
+
+ * 2. SMART CONTROL BUTTON
+
+ *    - Changes label based on workflow state:
+
+ *      * "Start" - Initial state
+
+ *      * "Resume" - During Version pauses
+
+ *      * Hidden/Disabled - During Process step
+
+ *    - Large, prominent button
+
+ *    - MIGOP red background with white text
+
+ * 
+
+ * 3. VERSION SECTION (Conditional - appears during Version steps only)
+
+ *    - Displays generated version number
+
+ *    - Format: #:B/A/O:yy:mm:dd:hh:mm:ss
+
+ *      * # = sequential number from Document Properties
+
+ *      * B = Before processing (1st version)
+
+ *      * A = After processing (2nd version)
+
+ *      * O = Official (only if checkbox checked in 2nd version)
+
+ *      * Timestamp format: 2-digit year, month, day, hour, minute, second
+
+ *    - Instructions text for creating version in Google Docs
+
+ *    - SECOND VERSION ONLY features:
+
+ *      * "Official Version" checkbox
+
+ *      * If checked, reveals:
+
+ *        - Dropdown: Committee selection (14 options)
+
+ *          Options: "PDBOR Subcommittee", "Policy Committee", 
+
+ *                   "D1", "D2", "D3", "D4", "D5", "D6", "D7", 
+
+ *                   "D8", "D9", "D10", "D11", "D12", "D13", 
+
+ *                   "State Committee"
+
+ *        - Rich text comment box (user note for version)
+
+ *    - Version number auto-copied to clipboard when generated
+
+ * 
+
+ * 4. PROGRESS TRACKER (Always visible)
+
+ *    - 5 workflow steps displayed vertically:
+
+ *      a) Start
+
+ *      b) Version (1st pause)
+
+ *      c) Process
+
+ *      d) Version (2nd pause)
+
+ *      e) Done
+
+ *    - Each step has three components:
+
+ *      LEFT: Status checkbox (☐ empty or ✓ green checkmark)
+
+ *      CENTER: Step label (bold text)
+
+ *      RIGHT: Status message area (dynamic text, updates during processing)
+
+ *    - Status area shows:
+
+ *      * Prompts during Version steps ("Please create version...")
+
+ *      * Granular progress messages during Process step
+
+ *      * Completion message at Done step
+
+ * 
+
+ * 5. DEBUG LOG WINDOW (Always visible, bottom section)
+
+ *    - Scrollable text area
+
+ *    - Displays all status messages chronologically
+
+ *    - Copy button to grab log for debugging
+
+ *    - Monospace font for readability
+
+ *    - Auto-scrolls to bottom as new messages arrive
+
+ * 
+
+ * ============================================================================
+
+ * COLOR PALETTE - MIGOP BRANDING
+
+ * ============================================================================
+
+ * 
+
+ * Primary Red: #C8102E (MIGOP official red)
+
+ * Dark Red: #9A0826 (for gradients/shadows)
+
+ * Light Red: #E84855 (for highlights)
+
+ * White: #FFFFFF
+
+ * Light Gray: #F5F5F5 (backgrounds)
+
+ * Medium Gray: #CCCCCC (borders)
+
+ * Dark Gray: #333333 (text)
+
+ * Success Green: #28A745 (checkmarks)
+
+ * 
+
+ * ============================================================================
+
+ * STATE MANAGEMENT
+
+ * ============================================================================
+
+ * 
+
+ * The UI responds to workflow state changes from migop-workflow-controller.
+
+ * States are:
+
+ *   - IDLE: Initial state, shows Start button
+
+ *   - VERSION_1: First pause, shows version section with B format
+
+ *   - PROCESSING: Active processing, button hidden, status updates
+
+ *   - VERSION_2: Second pause, shows version section with A/O format
+
+ *   - COMPLETE: Done state, all steps checked
+
+ * 
+
+ * ============================================================================
+
+ * DATA FLOW
+
+ * ============================================================================
+
+ * 
+
+ * INPUT from Controller:
+
+ *   - Current workflow state
+
+ *   - Step completion status (array of booleans)
+
+ *   - Current status messages for each step
+
+ *   - Version number when generated
+
+ *   - Log messages for debug window
+
+ * 
+
+ * OUTPUT to Controller:
+
+ *   - Button click events (Start/Resume)
+
+ *   - Official version checkbox state
+
+ *   - Committee dropdown selection
+
+ *   - Comment text content
+
+ * 
+
+ * ============================================================================
+
+ * IMPLEMENTATION NOTES
+
+ * ============================================================================
+
+ * 
+
+ * 1. Use modern CSS with flexbox/grid for layout
+
+ * 2. Add smooth transitions for section show/hide
+
+ * 3. Ensure responsive design (sidebar width ~600px)
+
+ * 4. Use semantic HTML for accessibility
+
+ * 5. Version section should slide in/out smoothly
+
+ * 6. Checkmarks should animate when appearing
+
+ * 7. Status text should fade when updating
+
+ * 8. All interactive elements need hover states
+
+ * 
+
+ * ============================================================================
+
+ */
+
+
+// ============================================================================
+
+// INITIALIZATION
+
+// ============================================================================
+
+
+/**
+
+ * Initialize the workflow UI when page loads
+
+ * Called automatically by browser after DOM ready
+
+ */
+
+function initializeWorkflowUI() {
+
+  // TODO: Set up initial UI state
+
+  // - Render banner with logo
+
+  // - Show Start button
+
+  // - Render empty progress tracker
+
+  // - Initialize log window
+
+  // - Attach event listeners
+
+  
+
+  console.log('Workflow UI initialized');
+
+}
+
+
+// ============================================================================
+
+// UI RENDERING FUNCTIONS
+
+// ============================================================================
+
+
+/**
+
+ * Render the top banner with MIGOP branding
+
+ * @returns {string} HTML string for banner section
+
+ */
+
+function renderBanner() {
+
+  // TODO: Create banner HTML with:
+
+  // - Red gradient background
+
+  // - MIGOP logo (embedded SVG or base64 image)
+
+  // - "MIGOP Editor" title text
+
+  // - Modern box shadow for depth
+
+  
+
+  return '<!-- Banner HTML goes here -->';
+
+}
+
+
+/**
+
+ * Render the smart control button
+
+ * @param {string} state - Current workflow state (IDLE, VERSION_1, PROCESSING, VERSION_2, COMPLETE)
+
+ * @returns {string} HTML string for button
+
+ */
+
+function renderSmartButton(state) {
+
+  // TODO: Render button based on state:
+
+  // - IDLE: "Start" button, red background
+
+  // - VERSION_1: "Resume" button, red background
+
+  // - PROCESSING: Hidden or disabled with loading indicator
+
+  // - VERSION_2: "Resume" button, red background
+
+  // - COMPLETE: "Done" button, disabled/green
+
+  
+
+  // Attach click handler that calls controller's handleButtonClick()
+
+  
+
+  return '<!-- Button HTML goes here -->';
+
+}
+
+
+/**
+
+ * Render the version section (conditional)
+
+ * @param {string} versionType - 'B' for first version, 'A' for second
+
+ * @param {string} versionNumber - Formatted version number
+
+ * @returns {string} HTML string for version section, or empty if not in version state
+
+ */
+
+function renderVersionSection(versionType, versionNumber) {
+
+  // TODO: Create version section with:
+
+  // - Version number display (large, prominent)
+
+  // - Instructions text: "Please create a version in Google Docs with this number"
+
+  // - Copy confirmation (version already in clipboard)
+
+  
+
+  // If versionType === 'A':
+
+  //   - Add "Official Version" checkbox
+
+  //   - When checked, reveal:
+
+  //     * Committee dropdown (14 options)
+
+  //     * Rich text comment box (plain textarea for now, RTF editor later)
+
+  
+
+  // Styling: Light background box, distinct from main content
+
+  
+
+  return '<!-- Version section HTML goes here -->';
+
+}
+
+
+/**
+
+ * Render the progress tracker with all steps
+
+ * @param {Array} stepStatus - Array of step objects with completion and message
+
+ * @returns {string} HTML string for progress tracker
+
+ */
+
+function renderProgressTracker(stepStatus) {
+
+  // TODO: Create vertical list of steps:
+
+  // stepStatus format: [
+
+  //   { label: 'Start', complete: false, message: '' },
+
+  //   { label: 'Version', complete: false, message: 'Waiting...' },
+
+  //   { label: 'Process', complete: false, message: '' },
+
+  //   { label: 'Version', complete: false, message: '' },
+
+  //   { label: 'Done', complete: false, message: '' }
+
+  // ]
+
+  
+
+  // For each step, render:
+
+  // - Left: Checkbox (☐ or ✓) with color based on complete status
+
+  // - Center: Step label (bold)
+
+  // - Right: Status message (dynamic text area)
+
+  
+
+  // Use CSS Grid for alignment:
+
+  // grid-template-columns: 30px 100px 1fr;
+
+  
+
+  return '<!-- Progress tracker HTML goes here -->';
+
+}
+
+
+/**
+
+ * Render the debug log window
+
+ * @param {Array} logMessages - Array of log message strings
+
+ * @returns {string} HTML string for log window
+
+ */
+
+function renderLogWindow(logMessages) {
+
+  // TODO: Create log window with:
+
+  // - Header: "Debug Log" with Copy button
+
+  // - Scrollable textarea (monospace font)
+
+  // - Auto-scroll to bottom behavior
+
+  // - Copy button copies all log text to clipboard
+
+  
+
+  // Log messages are chronological, newest at bottom
+
+  
+
+  return '<!-- Log window HTML goes here -->';
+
+}
+
+
+// ============================================================================
+
+// UI UPDATE FUNCTIONS (called by controller when state changes)
+
+// ============================================================================
+
+
+/**
+
+ * Update the entire UI based on new workflow state
+
+ * @param {Object} uiState - Complete UI state object from controller
+
+ */
+
+function updateUI(uiState) {
+
+  // TODO: Update all UI sections based on uiState
+
+  // uiState contains:
+
+  // {
+
+  //   workflowState: 'IDLE'|'VERSION_1'|'PROCESSING'|'VERSION_2'|'COMPLETE',
+
+  //   steps: [ { label, complete, message }, ... ],
+
+  //   versionNumber: '1:B:25:09:29:14:30:45' or null,
+
+  //   versionType: 'B'|'A'|'O' or null,
+
+  //   logMessages: [ 'message1', 'message2', ... ]
+
+  // }
+
+  
+
+  // Call individual update functions for each section
+
+  updateSmartButton(uiState.workflowState);
+
+  updateVersionSection(uiState.versionType, uiState.versionNumber);
+
+  updateProgressTracker(uiState.steps);
+
+  updateLogWindow(uiState.logMessages);
+
+}
+
+
+/**
+
+ * Update just the smart button state
+
+ * @param {string} state - Current workflow state
+
+ */
+
+function updateSmartButton(state) {
+
+  // TODO: Change button text/visibility based on state
+
+  // Use smooth CSS transition for state changes
+
+}
+
+
+/**
+
+ * Update the version section (show/hide/populate)
+
+ * @param {string} versionType - 'B', 'A', 'O', or null
+
+ * @param {string} versionNumber - Formatted version number or null
+
+ */
+
+function updateVersionSection(versionType, versionNumber) {
+
+  // TODO: 
+
+  // If versionType is null: Hide section (slide up animation)
+
+  // If versionType is 'B' or 'A': Show section with version number
+
+  // Handle Official checkbox reveal for 'A' type only
+
+}
+
+
+/**
+
+ * Update the progress tracker with new step status
+
+ * @param {Array} steps - Array of step status objects
+
+ */
+
+function updateProgressTracker(steps) {
+
+  // TODO: Update each step's:
+
+  // - Checkbox (empty to checkmark animation)
+
+  // - Status message (fade transition between messages)
+
+  
+
+  // Highlight current active step visually
+
+}
+
+
+/**
+
+ * Append new message to log window
+
+ * @param {string} message - Log message to add
+
+ */
+
+function appendLogMessage(message) {
+
+  // TODO: Add message to log textarea
+
+  // Auto-scroll to bottom
+
+  // Add timestamp prefix to message
+
+}
+
+
+/**
+
+ * Update log window with full log array
+
+ * @param {Array} logMessages - Complete array of log messages
+
+ */
+
+function updateLogWindow(logMessages) {
+
+  // TODO: Replace entire log content
+
+  // Join messages with newlines
+
+  // Scroll to bottom
+
+}
+
+
+// ============================================================================
+
+// EVENT HANDLERS
+
+// ============================================================================
+
+
+/**
+
+ * Handle smart button clicks
+
+ * Routes to controller based on current state
+
+ */
+
+function handleSmartButtonClick() {
+
+  // TODO: Get current workflow state
+
+  // Call appropriate controller method:
+
+  // - IDLE -> controller.startWorkflow()
+
+  // - VERSION_1 -> controller.resumeFromVersion1()
+
+  // - VERSION_2 -> controller.resumeFromVersion2(officialData)
+
+  
+
+  // If VERSION_2 and Official checkbox is checked:
+
+  //   Collect committee and comments data
+
+  //   Pass to controller as officialData object
+
+}
+
+
+/**
+
+ * Handle Official checkbox toggle (second version only)
+
+ */
+
+function handleOfficialCheckboxChange() {
+
+  // TODO: Show/hide committee dropdown and comments box
+
+  // Use slide-down animation for reveal
+
+}
+
+
+/**
+
+ * Handle Copy Log button click
+
+ */
+
+function handleCopyLogClick() {
+
+  // TODO: Copy all log text to clipboard
+
+  // Show brief "Copied!" confirmation message
+
+}
+
+
+// ============================================================================
+
+// UTILITY FUNCTIONS
+
+// ============================================================================
+
+
+/**
+
+ * Copy text to clipboard
+
+ * @param {string} text - Text to copy
+
+ */
+
+function copyToClipboard(text) {
+
+  // TODO: Use Clipboard API or fallback method
+
+  // navigator.clipboard.writeText(text)
+
+}
+
+
+/**
+
+ * Format timestamp for display
+
+ * @param {Date} date - Date object
+
+ * @returns {string} Formatted timestamp
+
+ */
+
+function formatTimestamp(date) {
+
+  // TODO: Return format: yy:mm:dd:hh:mm:ss
+
+  // All components zero-padded to 2 digits
+
+}
+
+
+/**
+
+ * Show temporary notification message
+
+ * @param {string} message - Message to display
+
+ * @param {string} type - 'success'|'error'|'info'
+
+ */
+
+function showNotification(message, type) {
+
+  // TODO: Show toast/notification at top of UI
+
+  // Auto-dismiss after 3 seconds
+
+  // Style based on type
+
+}
+
+
+// ============================================================================
+
+// CSS STYLES (embedded in this module)
+
+// ============================================================================
+
+
+/**
+
+ * Returns CSS stylesheet for workflow UI
+
+ * @returns {string} CSS style rules
+
+ */
+
+function getWorkflowStyles() {
+
+  return `
+
+    /* TODO: Add comprehensive styles for:
+
+     * - Banner with gradient and shadow
+
+     * - Smart button with hover/active states
+
+     * - Version section with smooth show/hide
+
+     * - Progress tracker grid layout
+
+     * - Checkmark animations
+
+     * - Log window styling
+
+     * - Responsive design
+
+     * - MIGOP color palette throughout
+
+     * - Modern shadows and depth
+
+     * - Smooth transitions (300ms ease)
+
+     */
+
+  `;
+
+}
+
+
+// ============================================================================
+
+// AUTO-INITIALIZATION
+
+// ============================================================================
+
+
+// Initialize UI when DOM is ready
+
+if (document.readyState === 'loading') {
+
+  document.addEventListener('DOMContentLoaded', initializeWorkflowUI);
+
+} else {
+
+  initializeWorkflowUI();
+
+}
+
+
+</script>
+
+
