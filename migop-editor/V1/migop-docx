@@ -1,0 +1,437 @@
+<script>
+/**
+ * migop-docx.html - DOCX Processing Service with Rebuilding
+ * Depends on: migop-base.html, migop-log.html, JSZip
+ */
+(function() {
+  'use strict';
+  
+  if (!window.MIGOP || !window.MIGOP.Base || !window.MIGOP.Log) {
+    throw new Error('migop-docx.html requires migop-base.html and migop-log.html');
+  }
+  
+  if (typeof JSZip === 'undefined') {
+    throw new Error('migop-docx.html requires JSZip library');
+  }
+  
+  var Base = window.MIGOP.Base;
+  var Log = window.MIGOP.Log;
+  
+  function DocxProcessor(logger) {
+    this.logger = logger || Log.getLogger();
+    this.stats = {
+      totalProcessed: 0,
+      successfulProcessing: 0,
+      errors: 0,
+      totalRebuilds: 0,
+      successfulRebuilds: 0
+    };
+    
+    this.logger.info('DocxProcessor', 'Processor initialized with rebuild capability');
+  }
+  
+  DocxProcessor.prototype.process = function(docxData, callback) {
+    var self = this;
+    self.stats.totalProcessed++;
+    
+    self.logger.info('DocxProcessor', 'Starting DOCX processing', {
+      hasData: !!docxData,
+      dataSuccess: docxData ? docxData.success : false
+    });
+    
+    if (!self.validateInput(docxData)) {
+      var error = 'Invalid DOCX data provided';
+      self.logger.error('DocxProcessor', error);
+      self.stats.errors++;
+      callback(Base.ProcessingResult.failure([error]));
+      return;
+    }
+    
+    self.parseDocx(docxData.data, function(parseResult) {
+      if (!parseResult.success) {
+        self.logger.error('DocxProcessor', 'DOCX parsing failed', parseResult.error);
+        self.stats.errors++;
+        callback(Base.ProcessingResult.failure([parseResult.error]));
+        return;
+      }
+      
+      self.extractDocumentXml(parseResult.zip, function(extractResult) {
+        if (!extractResult.success) {
+          self.logger.error('DocxProcessor', 'XML extraction failed', extractResult.error);
+          self.stats.errors++;
+          callback(Base.ProcessingResult.failure([extractResult.error]));
+          return;
+        }
+        
+        self.stats.successfulProcessing++;
+        
+        var result = Base.ProcessingResult.success([], extractResult.documentXml, {
+          originalSize: docxData.metadata ? docxData.metadata.originalSize : 0,
+          zip: parseResult.zip,
+          fileStructure: parseResult.fileStructure
+        });
+        
+        self.logger.info('DocxProcessor', 'DOCX processing completed successfully');
+        callback(result);
+      });
+    });
+  };
+  
+  DocxProcessor.prototype.rebuildDocx = function(originalZip, modifiedDocumentXml, callback) {
+    var self = this;
+    self.stats.totalRebuilds++;
+    
+    self.logger.info('DocxProcessor', 'Starting DOCX rebuild with modified document.xml', {
+      originalFiles: Object.keys(originalZip.files).length,
+      modifiedXmlLength: modifiedDocumentXml.length
+    });
+    
+    try {
+      var newZip = new JSZip();
+      
+      // Get list of files to copy (exclude document.xml)
+      var filesToCopy = Object.keys(originalZip.files).filter(function(filename) {
+        return filename !== 'word/document.xml';
+      });
+      
+      self.logger.debug('DocxProcessor', 'Copying files to new ZIP', {
+        totalFilesToCopy: filesToCopy.length,
+        excludedFiles: ['word/document.xml']
+      });
+      
+      // Copy all files except document.xml using Promise.all for efficiency
+      var copyPromises = filesToCopy.map(function(filename) {
+        return originalZip.files[filename].async('uint8array').then(function(data) {
+          newZip.file(filename, data);
+          self.logger.debug('DocxProcessor', 'File copied: ' + filename, {
+            size: data.length
+          });
+          return filename;
+        }).catch(function(error) {
+          self.logger.error('DocxProcessor', 'Failed to copy file: ' + filename, error);
+          throw error;
+        });
+      });
+      
+      Promise.all(copyPromises).then(function(copiedFiles) {
+        self.logger.info('DocxProcessor', 'All files copied successfully', {
+          copiedCount: copiedFiles.length
+        });
+        
+        // Add the modified document.xml
+        newZip.file('word/document.xml', modifiedDocumentXml);
+        self.logger.debug('DocxProcessor', 'Modified document.xml added to ZIP');
+        
+        // Generate the new DOCX blob
+        return newZip.generateAsync({
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: {
+            level: 6 // Good balance of compression and speed
+          }
+        });
+        
+      }).then(function(docxBlob) {
+        self.stats.successfulRebuilds++;
+        
+        self.logger.info('DocxProcessor', 'DOCX rebuild completed successfully', {
+          outputBlobSize: docxBlob.size,
+          outputBlobType: docxBlob.type,
+          compressionRatio: (docxBlob.size / self.calculateOriginalSize(originalZip)).toFixed(2)
+        });
+        
+        callback({
+          success: true,
+          docxBlob: docxBlob,
+          metadata: {
+            originalFileCount: Object.keys(originalZip.files).length,
+            modifiedXmlSize: modifiedDocumentXml.length,
+            finalBlobSize: docxBlob.size,
+            rebuiltAt: new Date().toISOString()
+          }
+        });
+        
+      }).catch(function(error) {
+        self.logger.error('DocxProcessor', 'DOCX rebuild failed during generation', error);
+        callback({
+          success: false,
+          error: error.message || 'DOCX rebuild failed during generation'
+        });
+      });
+      
+    } catch (error) {
+      self.logger.error('DocxProcessor', 'DOCX rebuild failed with exception', error);
+      callback({
+        success: false,
+        error: error.message || 'DOCX rebuild exception'
+      });
+    }
+  };
+  
+  DocxProcessor.prototype.calculateOriginalSize = function(zip) {
+    var totalSize = 0;
+    var filenames = Object.keys(zip.files);
+    
+    for (var i = 0; i < filenames.length; i++) {
+      var file = zip.files[filenames[i]];
+      if (!file.dir) {
+        // Estimate uncompressed size
+        totalSize += file._data ? file._data.uncompressedSize || 0 : 0;
+      }
+    }
+    
+    return totalSize || 100000; // Fallback estimate
+  };
+  
+  DocxProcessor.prototype.convertBlobToBase64 = function(blob, callback) {
+    var self = this;
+    self.logger.debug('DocxProcessor', 'Converting blob to base64', {
+      blobSize: blob.size,
+      blobType: blob.type
+    });
+    
+    try {
+      var reader = new FileReader();
+      
+      reader.onload = function(e) {
+        var arrayBuffer = e.target.result;
+        var bytes = new Uint8Array(arrayBuffer);
+        var binaryString = '';
+        
+        // Convert to binary string
+        for (var i = 0; i < bytes.length; i++) {
+          binaryString += String.fromCharCode(bytes[i]);
+        }
+        
+        // Convert to base64
+        var base64Data = btoa(binaryString);
+        
+        self.logger.info('DocxProcessor', 'Blob to base64 conversion completed', {
+          originalSize: blob.size,
+          base64Length: base64Data.length
+        });
+        
+        callback({
+          success: true,
+          base64Data: base64Data
+        });
+      };
+      
+      reader.onerror = function(error) {
+        self.logger.error('DocxProcessor', 'Blob to base64 conversion failed', error);
+        callback({
+          success: false,
+          error: 'Failed to convert blob to base64'
+        });
+      };
+      
+      reader.readAsArrayBuffer(blob);
+      
+    } catch (error) {
+      self.logger.error('DocxProcessor', 'Blob conversion exception', error);
+      callback({
+        success: false,
+        error: error.message || 'Blob conversion exception'
+      });
+    }
+  };
+  
+  DocxProcessor.prototype.validateInput = function(docxData) {
+    if (!docxData || typeof docxData !== 'object') {
+      this.logger.warn('DocxProcessor', 'Invalid docxData: not an object');
+      return false;
+    }
+    
+    if (!docxData.success) {
+      this.logger.warn('DocxProcessor', 'Invalid docxData: success flag is false');
+      return false;
+    }
+    
+    if (!docxData.data || typeof docxData.data !== 'string') {
+      this.logger.warn('DocxProcessor', 'Invalid docxData: missing or invalid data field');
+      return false;
+    }
+    
+    return true;
+  };
+  
+  DocxProcessor.prototype.parseDocx = function(base64Data, callback) {
+    var self = this;
+    self.logger.info('DocxProcessor', 'Parsing DOCX with JSZip', {
+      base64Length: base64Data.length
+    });
+    
+    try {
+      var binaryString = atob(base64Data);
+      var bytes = new Uint8Array(binaryString.length);
+      
+      for (var i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      self.logger.debug('DocxProcessor', 'Binary conversion completed', {
+        bytesLength: bytes.length
+      });
+      
+      JSZip.loadAsync(bytes).then(function(zip) {
+        self.logger.info('DocxProcessor', 'JSZip parsing completed', {
+          filesFound: Object.keys(zip.files).length
+        });
+        
+        var fileStructure = self.analyzeFileStructure(zip);
+        
+        callback({
+          success: true,
+          zip: zip,
+          fileStructure: fileStructure
+        });
+        
+      }).catch(function(error) {
+        self.logger.error('DocxProcessor', 'JSZip parsing failed', error);
+        callback({
+          success: false,
+          error: error.message || 'JSZip parsing failed'
+        });
+      });
+      
+    } catch (error) {
+      self.logger.error('DocxProcessor', 'DOCX parsing exception', error);
+      callback({
+        success: false,
+        error: error.message || 'DOCX parsing exception'
+      });
+    }
+  };
+  
+  DocxProcessor.prototype.analyzeFileStructure = function(zip) {
+    var files = Object.keys(zip.files);
+    var structure = {
+      totalFiles: files.length,
+      wordFiles: [],
+      xmlFiles: [],
+      hasDocumentXml: false,
+      hasCommentsXml: false,
+      hasStylesXml: false,
+      hasRelationships: false
+    };
+    
+    files.forEach(function(filename) {
+      if (filename.startsWith('word/')) {
+        structure.wordFiles.push(filename);
+        if (filename === 'word/document.xml') {
+          structure.hasDocumentXml = true;
+        } else if (filename === 'word/comments.xml') {
+          structure.hasCommentsXml = true;
+        } else if (filename === 'word/styles.xml') {
+          structure.hasStylesXml = true;
+        }
+      }
+      
+      if (filename.endsWith('.xml')) {
+        structure.xmlFiles.push(filename);
+      }
+      
+      if (filename.endsWith('.rels')) {
+        structure.hasRelationships = true;
+      }
+    });
+    
+    return structure;
+  };
+  
+  DocxProcessor.prototype.extractDocumentXml = function(zip, callback) {
+    var self = this;
+    self.logger.info('DocxProcessor', 'Extracting document.xml');
+    
+    if (!zip.files['word/document.xml']) {
+      var availableFiles = Object.keys(zip.files);
+      self.logger.error('DocxProcessor', 'document.xml not found', {
+        availableFiles: availableFiles.slice(0, 10),
+        totalFiles: availableFiles.length
+      });
+      
+      callback({
+        success: false,
+        error: 'document.xml not found in DOCX archive'
+      });
+      return;
+    }
+    
+    zip.files['word/document.xml'].async('string').then(function(documentXml) {
+      self.logger.info('DocxProcessor', 'document.xml extracted successfully', {
+        xmlLength: documentXml.length,
+        hasContent: documentXml.indexOf('<w:document') !== -1
+      });
+      
+      callback({
+        success: true,
+        documentXml: documentXml
+      });
+      
+    }).catch(function(error) {
+      self.logger.error('DocxProcessor', 'document.xml extraction failed', error);
+      callback({
+        success: false,
+        error: error.message || 'Failed to extract document.xml'
+      });
+    });
+  };
+  
+  DocxProcessor.prototype.getStats = function() {
+    return Base.deepClone(this.stats);
+  };
+  
+  DocxProcessor.prototype.resetStats = function() {
+    this.stats = {
+      totalProcessed: 0,
+      successfulProcessing: 0,
+      errors: 0,
+      totalRebuilds: 0,
+      successfulRebuilds: 0
+    };
+    this.logger.info('DocxProcessor', 'Statistics reset');
+  };
+  
+  window.MIGOP.Docx = {
+    DocxProcessor: DocxProcessor,
+    
+    createProcessor: function(logger) {
+      return new DocxProcessor(logger);
+    }
+  };
+  
+  console.log('[MIGOP] migop-docx.html loaded successfully with rebuild capability');
+})();
+</script>(error) {
+      self.logger.error('DocxProcessor', 'document.xml extraction failed', error);
+      callback({
+        success: false,
+        error: error.message || 'Failed to extract document.xml'
+      });
+    });
+  };
+  
+  DocxProcessor.prototype.getStats = function() {
+    return Base.deepClone(this.stats);
+  };
+  
+  DocxProcessor.prototype.resetStats = function() {
+    this.stats = {
+      totalProcessed: 0,
+      successfulProcessing: 0,
+      errors: 0
+    };
+    this.logger.info('DocxProcessor', 'Statistics reset');
+  };
+  
+  window.MIGOP.Docx = {
+    DocxProcessor: DocxProcessor,
+    
+    createProcessor: function(logger) {
+      return new DocxProcessor(logger);
+    }
+  };
+  
+  console.log('[MIGOP] migop-docx.html loaded successfully');
+})();
+</script>
