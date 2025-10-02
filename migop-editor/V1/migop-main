@@ -1,0 +1,214 @@
+<script>
+/**
+ * migop-main.html - Main Application Controller
+ * Depends on: all previous modules
+ */
+(function() {
+  'use strict';
+  
+  var requiredModules = ['Base', 'Log', 'Detection', 'Xml', 'Docx', 'Pipe'];
+  var missingModules = [];
+  
+  requiredModules.forEach(function(module) {
+    if (!window.MIGOP || !window.MIGOP[module]) {
+      missingModules.push('migop-' + module.toLowerCase() + '.html');
+    }
+  });
+  
+  if (missingModules.length > 0) {
+    throw new Error('migop-main.html requires: ' + missingModules.join(', '));
+  }
+  
+  var Base = window.MIGOP.Base;
+  var Log = window.MIGOP.Log;
+  var Pipe = window.MIGOP.Pipe;
+  
+  function MigopEditorController() {
+    this.logger = Log.getLogger();
+    this.bridge = Pipe.createBridge(this.logger);
+    this.pipeline = Pipe.createPipeline(this.logger);
+    
+    this.logger.info('MigopEditorController', 'Main controller initialized');
+    this.validateDependencies();
+  }
+  
+  MigopEditorController.prototype.validateDependencies = function() {
+    this.logger.debug('MigopEditorController', 'Validating dependencies');
+    
+    var dependencies = {
+      JSZip: typeof JSZip !== 'undefined',
+      GoogleAppsScript: typeof google !== 'undefined' && google.script && google.script.run
+    };
+    
+    this.logger.info('MigopEditorController', 'Dependency validation completed', dependencies);
+    
+    if (!dependencies.JSZip) {
+      throw new Error('JSZip library not available');
+    }
+    
+    if (!dependencies.GoogleAppsScript) {
+      this.logger.warn('MigopEditorController', 'Google Apps Script interface not available');
+    }
+  };
+  
+  MigopEditorController.prototype.processDocument = function() {
+    var self = this;
+    self.logger.info('MigopEditorController', 'Starting document processing workflow');
+    
+    self.updateStatus('Getting DOCX data from Google Docs...', 'warning');
+    self.disableProcessButton(true);
+    
+    self.bridge.getDocxData(function(docxData) {
+      if (!docxData || !docxData.success) {
+        var error = 'Failed to get DOCX data: ' + (docxData ? docxData.error : 'No response');
+        self.logger.error('MigopEditorController', error);
+        self.updateStatus('Failed to get DOCX data', 'error');
+        self.disableProcessButton(false);
+        return;
+      }
+      
+      self.updateStatus('Processing suggestions...', 'warning');
+      
+      self.pipeline.process(docxData, function(result) {
+        if (!result.success) {
+          var error = 'Processing failed: ' + (result.errors ? result.errors.join(', ') : 'Unknown error');
+          self.logger.error('MigopEditorController', error);
+          self.updateStatus('Processing failed', 'error');
+          self.disableProcessButton(false);
+          return;
+        }
+        
+        // Check if download is enabled
+        var downloadCheckbox = document.getElementById('downloadDocx');
+        if (downloadCheckbox && downloadCheckbox.checked && result.metadata.rebuiltDocxBase64) {
+          self.logger.info('MigopEditorController', 'Auto-download enabled, triggering download');
+          self.downloadProcessedDocx(result.metadata.rebuiltDocxBase64);
+        }
+        
+        self.updateStatus('Updating document...', 'warning');
+        
+        self.bridge.sendProcessedResult(result, function(replacementResult) {
+          if (!replacementResult || !replacementResult.success) {
+            var error = 'Document replacement failed: ' + (replacementResult ? replacementResult.error : 'No response');
+            self.logger.error('MigopEditorController', error);
+            self.updateStatus('Document replacement failed', 'error');
+            self.disableProcessButton(false);
+            return;
+          }
+          
+          self.updateStatus('Processing completed! ' + result.suggestions.length + ' suggestions processed.', 'success');
+          self.logger.info('MigopEditorController', 'Document processing workflow completed successfully', {
+            suggestionsProcessed: result.suggestions.length
+          });
+          self.disableProcessButton(false);
+        });
+      });
+    });
+  };
+  
+  MigopEditorController.prototype.downloadProcessedDocx = function(base64Data) {
+    try {
+      var byteCharacters = atob(base64Data);
+      var byteArray = new Uint8Array(byteCharacters.length);
+      for (var i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i);
+      }
+      var blob = new Blob([byteArray], {type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'migop_processed.docx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      this.logger.info('MigopEditorController', 'Processed DOCX downloaded successfully');
+    } catch (error) {
+      this.logger.error('MigopEditorController', 'Failed to download DOCX', error);
+    }
+  };
+  
+  MigopEditorController.prototype.updateStatus = function(message, type) {
+    var statusEl = document.getElementById('status');
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.className = 'status ' + type;
+    }
+    this.logger.debug('UI', 'Status updated', { message: message, type: type });
+  };
+  
+  MigopEditorController.prototype.disableProcessButton = function(disabled) {
+    var processBtn = document.getElementById('processBtn');
+    if (processBtn) {
+      processBtn.disabled = disabled;
+      processBtn.textContent = disabled ? 'Processing...' : 'Process Document Suggestions';
+    }
+    this.logger.debug('UI', 'Process button state changed', { disabled: disabled });
+  };
+  
+  MigopEditorController.prototype.getLogs = function() {
+    return this.logger.getAllLogs();
+  };
+  
+  MigopEditorController.prototype.getLogsAsText = function() {
+    return this.logger.getLogsAsText();
+  };
+  
+  MigopEditorController.prototype.clearLogs = function() {
+    this.logger.clear();
+  };
+  
+  MigopEditorController.prototype.getStats = function() {
+    return {
+      controller: {
+        initialized: true,
+        dependencies: this.validateDependencies()
+      },
+      pipeline: this.pipeline.getStats(),
+      logger: this.logger.getStats()
+    };
+  };
+  
+  var globalController = null;
+  
+  function getController() {
+    if (!globalController) {
+      globalController = new MigopEditorController();
+    }
+    return globalController;
+  }
+  
+  window.MIGOP.Main = {
+    MigopEditorController: MigopEditorController,
+    getController: getController,
+    
+    startProcessing: function() {
+      return getController().processDocument();
+    },
+    
+    updateStatus: function(message, type) {
+      return getController().updateStatus(message, type);
+    },
+    
+    getLogs: function() {
+      return getController().getLogs();
+    },
+    
+    getLogsAsText: function() {
+      return getController().getLogsAsText();
+    },
+    
+    clearLogs: function() {
+      return getController().clearLogs();
+    },
+    
+    getStats: function() {
+      return getController().getStats();
+    }
+  };
+  
+  window.MIGOP.startProcessing = window.MIGOP.Main.startProcessing;
+  
+  console.log('[MIGOP] migop-main.html loaded successfully');
+})();
+</script>
