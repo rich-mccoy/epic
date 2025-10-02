@@ -1,0 +1,1715 @@
+
+ 	
+Home
+html 1
+<script>
+
+/**
+
+ * ============================================================================
+
+ * MIGOP EDITOR 8.0 - VERSION MANAGER MODULE
+
+ * ============================================================================
+
+ * 
+
+ * PURPOSE:
+
+ * This module handles all version number generation, tracking, and version
+
+ * history page insertion for the MIGOP Editor workflow system.
+
+ * 
+
+ * ============================================================================
+
+ * VERSION NUMBER FORMAT SPECIFICATION
+
+ * ============================================================================
+
+ * 
+
+ * Format: #:B/A/O:yy:mm:dd:hh:mm:ss
+
+ * 
+
+ * Components:
+
+ *   # = Sequential number (integer, starts at 1, increments per workflow)
+
+ *       - Stored in Document Properties: 'MIGOP_VERSION_COUNT'
+
+ *       - Shared between B and A versions in same workflow instance
+
+ *       - Only increments when new workflow starts
+
+ * 
+
+ *   B/A/O = Version type (single letter)
+
+ *       B = Before processing (1st version pause)
+
+ *       A = After processing (2nd version pause, non-official)
+
+ *       O = Official (2nd version pause, with committee approval)
+
+ * 
+
+ *   yy = Year (2-digit, e.g., 25 for 2025)
+
+ *   mm = Month (2-digit, zero-padded, 01-12)
+
+ *   dd = Day (2-digit, zero-padded, 01-31)
+
+ *   hh = Hour (2-digit, zero-padded, 00-23, 24-hour format)
+
+ *   mm = Minute (2-digit, zero-padded, 00-59)
+
+ *   ss = Second (2-digit, zero-padded, 00-59)
+
+ * 
+
+ * Examples:
+
+ *   1:B:25:09:29:14:30:45
+
+ *     Sequential: 1
+
+ *     Type: Before
+
+ *     Date: September 29, 2025
+
+ *     Time: 2:30:45 PM
+
+ * 
+
+ *   1:A:25:09:29:14:45:12
+
+ *     Sequential: 1 (same workflow as above)
+
+ *     Type: After
+
+ *     Date: September 29, 2025
+
+ *     Time: 2:45:12 PM
+
+ * 
+
+ *   2:O:25:09:30:09:15:33
+
+ *     Sequential: 2 (new workflow)
+
+ *     Type: Official
+
+ *     Date: September 30, 2025
+
+ *     Time: 9:15:33 AM
+
+ * 
+
+ * ============================================================================
+
+ * VERSION HISTORY PAGE SPECIFICATION
+
+ * ============================================================================
+
+ * 
+
+ * When an Official version (O) is created, a version history page is inserted
+
+ * at the beginning of the document.
+
+ * 
+
+ * Page Structure:
+
+ *   1. Page Title (centered, large font)
+
+ *      "MIGOP Document Version History"
+
+ * 
+
+ *   2. For each official version, a formatted entry:
+
+ *      ┌─────────────────────────────────────────────────┐
+
+ *      │ Version: 2:O:25:09:30:09:15:33                  │
+
+ *      │ Approved By: Policy Committee                   │
+
+ *      │ Date: September 30, 2025 at 9:15 AM            │
+
+ *      │                                                 │
+
+ *      │ Comments:                                       │
+
+ *      │ [User's rich text comments here]                │
+
+ *      └─────────────────────────────────────────────────┘
+
+ * 
+
+ *   3. Entries sorted newest first (top to bottom)
+
+ * 
+
+ *   4. Page break after version history
+
+ * 
+
+ * Formatting:
+
+ *   - Title: 18pt, bold, centered, MIGOP red (#C8102E)
+
+ *   - Version entries: 11pt, bordered box with light gray background
+
+ *   - Version number: 12pt, bold
+
+ *   - Committee: 11pt, normal
+
+ *   - Date: 10pt, italic
+
+ *   - Comments: 10pt, preserve user formatting
+
+ * 
+
+ * ============================================================================
+
+ * DOCUMENT PROPERTIES STORAGE
+
+ * ============================================================================
+
+ * 
+
+ * The version counter is stored in Google Document Properties for persistence.
+
+ * This ensures the counter survives across sessions and script executions.
+
+ * 
+
+ * Property Key: 'MIGOP_VERSION_COUNT'
+
+ * Property Value: String representation of integer (e.g., "5")
+
+ * 
+
+ * Access Pattern:
+
+ *   1. Read current count from properties
+
+ *   2. If not found, initialize to 0
+
+ *   3. Increment counter
+
+ *   4. Store new value back to properties
+
+ *   5. Return incremented value
+
+ * 
+
+ * Note: Counter increments only when generateVersionNumber() is called,
+
+ * not automatically. This allows B and A versions to share the same number.
+
+ * 
+
+ * ============================================================================
+
+ * VERSION HISTORY METADATA STORAGE
+
+ * ============================================================================
+
+ * 
+
+ * Official version metadata is stored in Document Properties as JSON.
+
+ * This allows reconstructing the version history page if needed.
+
+ * 
+
+ * Property Key: 'MIGOP_VERSION_HISTORY'
+
+ * Property Value: JSON array of version objects
+
+ * 
+
+ * Version Object Structure:
+
+ * {
+
+ *   versionNumber: "2:O:25:09:30:09:15:33",
+
+ *   committee: "Policy Committee",
+
+ *   timestamp: "2025-09-30T09:15:33.000Z" (ISO 8601),
+
+ *   comments: "Approved all formatting changes..."
+
+ * }
+
+ * 
+
+ * ============================================================================
+
+ * INTEGRATION WITH CONTROLLER
+
+ * ============================================================================
+
+ * 
+
+ * The controller calls this module's functions at specific workflow points:
+
+ * 
+
+ * 1. Start of Phase 1 (Before version):
+
+ *    - Call: getOrIncrementVersionCounter()
+
+ *    - Call: generateVersionNumber(counter, 'B')
+
+ *    - Result: Version number for user to apply
+
+ * 
+
+ * 2. Start of Phase 2 (After/Official version):
+
+ *    - Call: generateVersionNumber(sameCounter, 'A')
+
+ *    - If Official: Call generateVersionNumber(sameCounter, 'O')
+
+ *    - Result: Version number for user to apply
+
+ * 
+
+ * 3. End of Phase 3 (Official version finalization):
+
+ *    - Call: writeVersionHistoryPage(versionData)
+
+ *    - versionData includes: {versionNumber, committee, timestamp, comments}
+
+ *    - Result: Version history page inserted/updated in document
+
+ * 
+
+ * ============================================================================
+
+ * ERROR HANDLING
+
+ * ============================================================================
+
+ * 
+
+ * All functions that interact with Document Properties or DocumentApp must
+
+ * handle errors gracefully:
+
+ *   - Property read/write failures
+
+ *   - Document access failures
+
+ *   - JSON parse errors (corrupted metadata)
+
+ *   - Permission errors
+
+ * 
+
+ * On error:
+
+ *   1. Log detailed error message
+
+ *   2. Return error object: {success: false, error: message}
+
+ *   3. Do not throw exceptions (let caller handle)
+
+ * 
+
+ * ============================================================================
+
+ */
+
+
+// ============================================================================
+
+// VERSION NUMBER GENERATION
+
+// ============================================================================
+
+
+/**
+
+ * Get the current version counter or increment it for new workflow
+
+ * This should be called once per workflow instance (at start of Phase 1)
+
+ * @param {boolean} increment - Whether to increment the counter
+
+ * @returns {number} Current or incremented version counter
+
+ */
+
+function getOrIncrementVersionCounter(increment = true) {
+
+  // TODO: Implement version counter management
+
+  // This function must be called server-side (Code.gs) because it accesses
+
+  // Document Properties. Client-side code calls this via google.script.run.
+
+  
+
+  // Pseudocode:
+
+  // const properties = PropertiesService.getDocumentProperties();
+
+  // let currentCount = properties.getProperty('MIGOP_VERSION_COUNT');
+
+  // 
+
+  // if (!currentCount) {
+
+  //   currentCount = '0';
+
+  // }
+
+  // 
+
+  // let numericCount = parseInt(currentCount);
+
+  // 
+
+  // if (increment) {
+
+  //   numericCount++;
+
+  //   properties.setProperty('MIGOP_VERSION_COUNT', numericCount.toString());
+
+  // }
+
+  // 
+
+  // return numericCount;
+
+  
+
+  return 1; // Placeholder
+
+}
+
+
+/**
+
+ * Generate a formatted version number string
+
+ * @param {number} sequentialNumber - Version counter from Document Properties
+
+ * @param {string} type - 'B', 'A', or 'O'
+
+ * @param {Date} timestamp - Optional timestamp (defaults to now)
+
+ * @returns {string} Formatted version number: #:B/A/O:yy:mm:dd:hh:mm:ss
+
+ */
+
+function generateVersionNumber(sequentialNumber, type, timestamp = null) {
+
+  // TODO: Format version number according to specification
+
+  
+
+  if (!timestamp) {
+
+    timestamp = new Date();
+
+  }
+
+  
+
+  // Validate type
+
+  if (!['B', 'A', 'O'].includes(type)) {
+
+    console.error(`Invalid version type: ${type}`);
+
+    return null;
+
+  }
+
+  
+
+  // Extract and format date/time components
+
+  // const yy = String(timestamp.getFullYear()).slice(-2).padStart(2, '0');
+
+  // const mm = String(timestamp.getMonth() + 1).padStart(2, '0');
+
+  // const dd = String(timestamp.getDate()).padStart(2, '0');
+
+  // const hh = String(timestamp.getHours()).padStart(2, '0');
+
+  // const min = String(timestamp.getMinutes()).padStart(2, '0');
+
+  // const ss = String(timestamp.getSeconds()).padStart(2, '0');
+
+  
+
+  // Build version string
+
+  // const versionString = `${sequentialNumber}:${type}:${yy}:${mm}:${dd}:${hh}:${min}:${ss}`;
+
+  
+
+  // return versionString;
+
+  
+
+  return '1:B:25:09:29:14:30:45'; // Placeholder
+
+}
+
+
+/**
+
+ * Parse a version number string into components
+
+ * @param {string} versionString - Formatted version number
+
+ * @returns {Object} Parsed components: {sequential, type, year, month, day, hour, minute, second}
+
+ */
+
+function parseVersionNumber(versionString) {
+
+  // TODO: Parse version string into components
+
+  
+
+  // const parts = versionString.split(':');
+
+  // 
+
+  // if (parts.length !== 8) {
+
+  //   console.error(`Invalid version string format: ${versionString}`);
+
+  //   return null;
+
+  // }
+
+  // 
+
+  // return {
+
+  //   sequential: parseInt(parts[0]),
+
+  //   type: parts[1],
+
+  //   year: parseInt(parts[2]),
+
+  //   month: parseInt(parts[3]),
+
+  //   day: parseInt(parts[4]),
+
+  //   hour: parseInt(parts[5]),
+
+  //   minute: parseInt(parts[6]),
+
+  //   second: parseInt(parts[7])
+
+  // };
+
+  
+
+  return null; // Placeholder
+
+}
+
+
+/**
+
+ * Convert parsed version number to readable date string
+
+ * @param {Object} parsed - Parsed version components from parseVersionNumber()
+
+ * @returns {string} Human-readable date: "September 30, 2025 at 9:15 AM"
+
+ */
+
+function formatVersionDate(parsed) {
+
+  // TODO: Format date for display in version history
+
+  
+
+  // const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+
+  //                     'July', 'August', 'September', 'October', 'November', 'December'];
+
+  // 
+
+  // const monthName = monthNames[parsed.month - 1];
+
+  // const fullYear = 2000 + parsed.year;
+
+  // 
+
+  // // Convert to 12-hour format with AM/PM
+
+  // let hour12 = parsed.hour % 12;
+
+  // if (hour12 === 0) hour12 = 12;
+
+  // const ampm = parsed.hour >= 12 ? 'PM' : 'AM';
+
+  // 
+
+  // return `${monthName} ${parsed.day}, ${fullYear} at ${hour12}:${String(parsed.minute).padStart(2, '0')} ${ampm}`;
+
+  
+
+  return 'September 30, 2025 at 9:15 AM'; // Placeholder
+
+}
+
+
+// ============================================================================
+
+// VERSION HISTORY METADATA MANAGEMENT
+
+// ============================================================================
+
+
+/**
+
+ * Save version metadata to Document Properties
+
+ * @param {Object} versionData - {versionNumber, committee, timestamp, comments}
+
+ * @returns {Object} Result: {success: boolean, error: string}
+
+ */
+
+function saveVersionMetadata(versionData) {
+
+  // TODO: Store version metadata in Document Properties
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // try {
+
+  //   const properties = PropertiesService.getDocumentProperties();
+
+  //   let historyJson = properties.getProperty('MIGOP_VERSION_HISTORY');
+
+  //   
+
+  //   let history = [];
+
+  //   if (historyJson) {
+
+  //     history = JSON.parse(historyJson);
+
+  //   }
+
+  //   
+
+  //   // Add new version to beginning of array (newest first)
+
+  //   history.unshift({
+
+  //     versionNumber: versionData.versionNumber,
+
+  //     committee: versionData.committee,
+
+  //     timestamp: versionData.timestamp.toISOString(),
+
+  //     comments: versionData.comments
+
+  //   });
+
+  //   
+
+  //   // Store back to properties
+
+  //   properties.setProperty('MIGOP_VERSION_HISTORY', JSON.stringify(history));
+
+  //   
+
+  //   return {success: true};
+
+  // } catch (error) {
+
+  //   return {success: false, error: error.message};
+
+  // }
+
+  
+
+  return {success: true}; // Placeholder
+
+}
+
+
+/**
+
+ * Load all version metadata from Document Properties
+
+ * @returns {Array} Array of version objects, or empty array if none
+
+ */
+
+function loadVersionMetadata() {
+
+  // TODO: Retrieve version metadata from Document Properties
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // try {
+
+  //   const properties = PropertiesService.getDocumentProperties();
+
+  //   const historyJson = properties.getProperty('MIGOP_VERSION_HISTORY');
+
+  //   
+
+  //   if (!historyJson) {
+
+  //     return [];
+
+  //   }
+
+  //   
+
+  //   return JSON.parse(historyJson);
+
+  // } catch (error) {
+
+  //   console.error('Failed to load version metadata:', error);
+
+  //   return [];
+
+  // }
+
+  
+
+  return []; // Placeholder
+
+}
+
+
+// ============================================================================
+
+// VERSION HISTORY PAGE INSERTION
+
+// ============================================================================
+
+
+/**
+
+ * Write or update the version history page in the document
+
+ * This function must be called server-side (Code.gs) via DocumentApp
+
+ * @param {Object} versionData - {versionNumber, committee, timestamp, comments}
+
+ * @returns {Object} Result: {success: boolean, message: string, error: string}
+
+ */
+
+function writeVersionHistoryPage(versionData) {
+
+  // TODO: Insert or update version history page in document
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // try {
+
+  //   // Save metadata first
+
+  //   const saveResult = saveVersionMetadata(versionData);
+
+  //   if (!saveResult.success) {
+
+  //     return saveResult;
+
+  //   }
+
+  //   
+
+  //   // Get document
+
+  //   const doc = DocumentApp.getActiveDocument();
+
+  //   const body = doc.getBody();
+
+  //   
+
+  //   // Check if version history page already exists
+
+  //   // Look for paragraph with text "MIGOP Document Version History"
+
+  //   let historyPageExists = false;
+
+  //   let historyStartIndex = 0;
+
+  //   
+
+  //   const numChildren = body.getNumChildren();
+
+  //   for (let i = 0; i < numChildren; i++) {
+
+  //     const child = body.getChild(i);
+
+  //     if (child.getType() === DocumentApp.ElementType.PARAGRAPH) {
+
+  //       const text = child.asParagraph().getText();
+
+  //       if (text.includes('MIGOP Document Version History')) {
+
+  //         historyPageExists = true;
+
+  //         historyStartIndex = i;
+
+  //         break;
+
+  //       }
+
+  //     }
+
+  //   }
+
+  //   
+
+  //   if (historyPageExists) {
+
+  //     // Update existing page: insert new entry after title
+
+  //     insertVersionEntry(body, historyStartIndex + 1, versionData);
+
+  //   } else {
+
+  //     // Create new version history page at document start
+
+  //     createVersionHistoryPage(body, versionData);
+
+  //   }
+
+  //   
+
+  //   return {
+
+  //     success: true,
+
+  //     message: 'Version history updated successfully'
+
+  //   };
+
+  //   
+
+  // } catch (error) {
+
+  //   return {
+
+  //     success: false,
+
+  //     error: error.message
+
+  //   };
+
+  // }
+
+  
+
+  return {success: true, message: 'Version history updated'}; // Placeholder
+
+}
+
+
+/**
+
+ * Create a new version history page at the start of the document
+
+ * Helper function for writeVersionHistoryPage()
+
+ * @param {DocumentApp.Body} body - Document body
+
+ * @param {Object} versionData - First version entry data
+
+ */
+
+function createVersionHistoryPage(body, versionData) {
+
+  // TODO: Create formatted version history page
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // // Insert title at position 0
+
+  // const title = body.insertParagraph(0, 'MIGOP Document Version History');
+
+  // title.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+  // title.setFontSize(18);
+
+  // title.setBold(true);
+
+  // title.setForegroundColor('#C8102E'); // MIGOP red
+
+  // 
+
+  // // Insert blank line
+
+  // body.insertParagraph(1, '');
+
+  // 
+
+  // // Insert first version entry
+
+  // insertVersionEntry(body, 2, versionData);
+
+  // 
+
+  // // Insert page break after version history
+
+  // body.insertPageBreak(3);
+
+}
+
+
+/**
+
+ * Insert a version entry into the version history page
+
+ * Helper function for writeVersionHistoryPage()
+
+ * @param {DocumentApp.Body} body - Document body
+
+ * @param {number} position - Index position to insert entry
+
+ * @param {Object} versionData - Version entry data
+
+ */
+
+function insertVersionEntry(body, position, versionData) {
+
+  // TODO: Insert formatted version entry
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // // Parse version number for display
+
+  // const parsed = parseVersionNumber(versionData.versionNumber);
+
+  // const dateString = formatVersionDate(parsed);
+
+  // 
+
+  // // Create bordered box with light gray background
+
+  // // Note: Google Docs doesn't support bordered divs directly
+
+  // // Use table with single cell as workaround
+
+  // 
+
+  // const table = body.insertTable(position);
+
+  // const row = table.appendTableRow();
+
+  // const cell = row.appendTableCell();
+
+  // 
+
+  // // Style the cell
+
+  // cell.setBackgroundColor('#F5F5F5'); // Light gray
+
+  // cell.setPaddingTop(10);
+
+  // cell.setPaddingBottom(10);
+
+  // cell.setPaddingLeft(10);
+
+  // cell.setPaddingRight(10);
+
+  // 
+
+  // // Add version number
+
+  // const versionPara = cell.appendParagraph(`Version: ${versionData.versionNumber}`);
+
+  // versionPara.setFontSize(12);
+
+  // versionPara.setBold(true);
+
+  // 
+
+  // // Add committee
+
+  // const committeePara = cell.appendParagraph(`Approved By: ${versionData.committee}`);
+
+  // committeePara.setFontSize(11);
+
+  // 
+
+  // // Add date
+
+  // const datePara = cell.appendParagraph(`Date: ${dateString}`);
+
+  // datePara.setFontSize(10);
+
+  // datePara.setItalic(true);
+
+  // 
+
+  // // Add blank line before comments
+
+  // cell.appendParagraph('');
+
+  // 
+
+  // // Add comments label
+
+  // const commentsLabel = cell.appendParagraph('Comments:');
+
+  // commentsLabel.setFontSize(10);
+
+  // commentsLabel.setBold(true);
+
+  // 
+
+  // // Add comments content
+
+  // const commentsPara = cell.appendParagraph(versionData.comments);
+
+  // commentsPara.setFontSize(10);
+
+  // 
+
+  // // Add blank line after entry
+
+  // body.insertParagraph(position + 1, '');
+
+}
+
+
+/**
+
+ * Rebuild entire version history page from stored metadata
+
+ * Useful if page gets corrupted or deleted
+
+ * @returns {Object} Result: {success: boolean, message: string, error: string}
+
+ */
+
+function rebuildVersionHistoryPage() {
+
+  // TODO: Rebuild version history from metadata
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // try {
+
+  //   // Load all version metadata
+
+  //   const history = loadVersionMetadata();
+
+  //   
+
+  //   if (history.length === 0) {
+
+  //     return {
+
+  //       success: false,
+
+  //       error: 'No version history found in metadata'
+
+  //     };
+
+  //   }
+
+  //   
+
+  //   const doc = DocumentApp.getActiveDocument();
+
+  //   const body = doc.getBody();
+
+  //   
+
+  //   // Find and delete existing version history page
+
+  //   deleteVersionHistoryPage(body);
+
+  //   
+
+  //   // Create new page with title
+
+  //   const title = body.insertParagraph(0, 'MIGOP Document Version History');
+
+  //   title.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+  //   title.setFontSize(18);
+
+  //   title.setBold(true);
+
+  //   title.setForegroundColor('#C8102E');
+
+  //   
+
+  //   body.insertParagraph(1, '');
+
+  //   
+
+  //   // Insert all version entries (already sorted newest first)
+
+  //   let position = 2;
+
+  //   for (const versionData of history) {
+
+  //     // Reconstruct timestamp from ISO string
+
+  //     versionData.timestamp = new Date(versionData.timestamp);
+
+  //     insertVersionEntry(body, position, versionData);
+
+  //     position += 2; // Account for entry and blank line
+
+  //   }
+
+  //   
+
+  //   // Insert page break
+
+  //   body.insertPageBreak(position);
+
+  //   
+
+  //   return {
+
+  //     success: true,
+
+  //     message: `Rebuilt version history with ${history.length} entries`
+
+  //   };
+
+  //   
+
+  // } catch (error) {
+
+  //   return {
+
+  //     success: false,
+
+  //     error: error.message
+
+  //   };
+
+  // }
+
+  
+
+  return {success: true, message: 'Version history rebuilt'}; // Placeholder
+
+}
+
+
+/**
+
+ * Delete the version history page from document
+
+ * Helper function for rebuildVersionHistoryPage()
+
+ * @param {DocumentApp.Body} body - Document body
+
+ */
+
+function deleteVersionHistoryPage(body) {
+
+  // TODO: Find and delete version history page
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // const numChildren = body.getNumChildren();
+
+  // let deleteStart = -1;
+
+  // let deleteEnd = -1;
+
+  // 
+
+  // // Find start of version history
+
+  // for (let i = 0; i < numChildren; i++) {
+
+  //   const child = body.getChild(i);
+
+  //   if (child.getType() === DocumentApp.ElementType.PARAGRAPH) {
+
+  //     const text = child.asParagraph().getText();
+
+  //     if (text.includes('MIGOP Document Version History')) {
+
+  //       deleteStart = i;
+
+  //       break;
+
+  //     }
+
+  //   }
+
+  // }
+
+  // 
+
+  // if (deleteStart === -1) {
+
+  //   return; // No version history found
+
+  // }
+
+  // 
+
+  // // Find first page break after title (end of version history)
+
+  // for (let i = deleteStart + 1; i < numChildren; i++) {
+
+  //   const child = body.getChild(i);
+
+  //   if (child.getType() === DocumentApp.ElementType.PAGE_BREAK) {
+
+  //     deleteEnd = i;
+
+  //     break;
+
+  //   }
+
+  // }
+
+  // 
+
+  // // Delete all elements from start to end (inclusive)
+
+  // if (deleteEnd > deleteStart) {
+
+  //   for (let i = deleteEnd; i >= deleteStart; i--) {
+
+  //     body.removeChild(body.getChild(i));
+
+  //   }
+
+  // }
+
+}
+
+
+// ============================================================================
+
+// UTILITY FUNCTIONS
+
+// ============================================================================
+
+
+/**
+
+ * Validate version data before writing to document
+
+ * @param {Object} versionData - Version data to validate
+
+ * @returns {Object} Validation result: {valid: boolean, errors: Array<string>}
+
+ */
+
+function validateVersionData(versionData) {
+
+  // TODO: Validate required fields and format
+
+  
+
+  const errors = [];
+
+  
+
+  // if (!versionData.versionNumber) {
+
+  //   errors.push('Version number is required');
+
+  // } else {
+
+  //   const parsed = parseVersionNumber(versionData.versionNumber);
+
+  //   if (!parsed) {
+
+  //     errors.push('Invalid version number format');
+
+  //   }
+
+  // }
+
+  // 
+
+  // if (!versionData.committee) {
+
+  //   errors.push('Committee is required');
+
+  // }
+
+  // 
+
+  // if (!versionData.timestamp || !(versionData.timestamp instanceof Date)) {
+
+  //   errors.push('Valid timestamp is required');
+
+  // }
+
+  // 
+
+  // if (!versionData.comments) {
+
+  //   errors.push('Comments are required');
+
+  // }
+
+  // 
+
+  // return {
+
+  //   valid: errors.length === 0,
+
+  //   errors: errors
+
+  // };
+
+  
+
+  return {valid: true, errors: []}; // Placeholder
+
+}
+
+
+/**
+
+ * Get the committee display name (handle abbreviations)
+
+ * @param {string} committeeValue - Raw committee value from dropdown
+
+ * @returns {string} Full committee name for display
+
+ */
+
+function getCommitteeDisplayName(committeeValue) {
+
+  // TODO: Map committee values to display names
+
+  
+
+  // const committeeMap = {
+
+  //   'PDBOR': 'PDBOR Subcommittee',
+
+  //   'Policy': 'Policy Committee',
+
+  //   'D1': 'District 1',
+
+  //   'D2': 'District 2',
+
+  //   'D3': 'District 3',
+
+  //   'D4': 'District 4',
+
+  //   'D5': 'District 5',
+
+  //   'D6': 'District 6',
+
+  //   'D7': 'District 7',
+
+  //   'D8': 'District 8',
+
+  //   'D9': 'District 9',
+
+  //   'D10': 'District 10',
+
+  //   'D11': 'District 11',
+
+  //   'D12': 'District 12',
+
+  //   'D13': 'District 13',
+
+  //   'State': 'State Committee'
+
+  // };
+
+  // 
+
+  // return committeeMap[committeeValue] || committeeValue;
+
+  
+
+  return committeeValue; // Placeholder
+
+}
+
+
+/**
+
+ * Format comments text for insertion (handle line breaks, etc.)
+
+ * @param {string} comments - Raw comment text from input
+
+ * @returns {string} Formatted comments for document
+
+ */
+
+function formatCommentsText(comments) {
+
+  // TODO: Clean and format comment text
+
+  
+
+  // Trim whitespace
+
+  // let formatted = comments.trim();
+
+  // 
+
+  // // Replace multiple consecutive newlines with double newline
+
+  // formatted = formatted.replace(/\n{3,}/g, '\n\n');
+
+  // 
+
+  // // Remove any HTML tags if present (in case RTF editor used)
+
+  // formatted = formatted.replace(/<[^>]*>/g, '');
+
+  // 
+
+  // return formatted;
+
+  
+
+  return comments; // Placeholder
+
+}
+
+
+/**
+
+ * Export version history as plain text for backup
+
+ * @returns {string} Formatted text representation of version history
+
+ */
+
+function exportVersionHistoryText() {
+
+  // TODO: Export version history as readable text
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // const history = loadVersionMetadata();
+
+  // 
+
+  // if (history.length === 0) {
+
+  //   return 'No version history found.';
+
+  // }
+
+  // 
+
+  // let text = 'MIGOP DOCUMENT VERSION HISTORY\n';
+
+  // text += '================================\n\n';
+
+  // 
+
+  // for (const version of history) {
+
+  //   const parsed = parseVersionNumber(version.versionNumber);
+
+  //   const dateString = formatVersionDate(parsed);
+
+  //   
+
+  //   text += `Version: ${version.versionNumber}\n`;
+
+  //   text += `Approved By: ${version.committee}\n`;
+
+  //   text += `Date: ${dateString}\n`;
+
+  //   text += `\nComments:\n${version.comments}\n`;
+
+  //   text += '\n' + '-'.repeat(50) + '\n\n';
+
+  // }
+
+  // 
+
+  // return text;
+
+  
+
+  return 'Version history export'; // Placeholder
+
+}
+
+
+// ============================================================================
+
+// TESTING & DEBUGGING FUNCTIONS
+
+// ============================================================================
+
+
+/**
+
+ * Test version number generation with various scenarios
+
+ * For development/debugging only
+
+ */
+
+function testVersionNumberGeneration() {
+
+  // TODO: Run test cases
+
+  
+
+  console.log('Testing version number generation...');
+
+  
+
+  // Test Case 1: Before version
+
+  // const v1 = generateVersionNumber(1, 'B', new Date('2025-09-29T14:30:45'));
+
+  // console.log('Test 1 (Before):', v1);
+
+  // Expected: 1:B:25:09:29:14:30:45
+
+  
+
+  // Test Case 2: After version
+
+  // const v2 = generateVersionNumber(1, 'A', new Date('2025-09-29T14:45:12'));
+
+  // console.log('Test 2 (After):', v2);
+
+  // Expected: 1:A:25:09:29:14:45:12
+
+  
+
+  // Test Case 3: Official version
+
+  // const v3 = generateVersionNumber(2, 'O', new Date('2025-09-30T09:15:33'));
+
+  // console.log('Test 3 (Official):', v3);
+
+  // Expected: 2:O:25:09:30:09:15:33
+
+  
+
+  // Test Case 4: Parse and format date
+
+  // const parsed = parseVersionNumber(v3);
+
+  // console.log('Test 4 (Parsed):', parsed);
+
+  // const formatted = formatVersionDate(parsed);
+
+  // console.log('Test 4 (Formatted):', formatted);
+
+  // Expected: September 30, 2025 at 9:15 AM
+
+  
+
+  console.log('Version number tests complete');
+
+}
+
+
+/**
+
+ * Test version history page creation
+
+ * For development/debugging only
+
+ */
+
+function testVersionHistoryPage() {
+
+  // TODO: Create test version history page
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  console.log('Testing version history page creation...');
+
+  
+
+  // const testData = {
+
+  //   versionNumber: '1:O:25:09:30:09:15:33',
+
+  //   committee: 'Policy Committee',
+
+  //   timestamp: new Date('2025-09-30T09:15:33'),
+
+  //   comments: 'Initial official version. Approved all formatting changes and accepted suggestions for policy updates.'
+
+  // };
+
+  // 
+
+  // const result = writeVersionHistoryPage(testData);
+
+  // console.log('Test result:', result);
+
+  
+
+  console.log('Version history page test complete');
+
+}
+
+
+/**
+
+ * Clear all version metadata (for testing only)
+
+ * CAUTION: This deletes all version history data
+
+ */
+
+function clearVersionMetadata() {
+
+  // TODO: Clear all version metadata from Document Properties
+
+  // This function must be server-side (Code.gs)
+
+  
+
+  // Pseudocode:
+
+  // const properties = PropertiesService.getDocumentProperties();
+
+  // properties.deleteProperty('MIGOP_VERSION_COUNT');
+
+  // properties.deleteProperty('MIGOP_VERSION_HISTORY');
+
+  // 
+
+  // console.log('All version metadata cleared');
+
+}
+
+
+// ============================================================================
+
+// INITIALIZATION
+
+// ============================================================================
+
+
+/**
+
+ * Initialize version manager module
+
+ */
+
+function initializeVersionManager() {
+
+  console.log('MIGOP Version Manager initialized');
+
+  
+
+  // Run tests in development mode
+
+  // Uncomment for testing:
+
+  // testVersionNumberGeneration();
+
+}
+
+
+// Auto-initialize when module loads
+
+initializeVersionManager();
+
+
+// ============================================================================
+
+// EXPORTS (for Controller and Code.gs to call)
+
+// ============================================================================
+
+
+// Client-side functions (called by controller):
+
+// - generateVersionNumber(sequential, type, timestamp)
+
+// - parseVersionNumber(versionString)
+
+// - formatVersionDate(parsed)
+
+// - validateVersionData(versionData)
+
+// - formatCommentsText(comments)
+
+// - getCommitteeDisplayName(value)
+
+
+// Server-side functions (must be in Code.gs, called via google.script.run):
+
+// - getOrIncrementVersionCounter(increment)
+
+// - writeVersionHistoryPage(versionData)
+
+// - saveVersionMetadata(versionData)
+
+// - loadVersionMetadata()
+
+// - rebuildVersionHistoryPage()
+
+// - exportVersionHistoryText()
+
+// - clearVersionMetadata() [testing only]
+
+
+</script>
+
+
