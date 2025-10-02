@@ -1,0 +1,234 @@
+<script>
+/**
+ * migop-pipe.html - Processing Pipeline Orchestrator
+ * Depends on: migop-base.html, migop-log.html, migop-detection.html, migop-xml.html, migop-docx.html
+ */
+(function() {
+  'use strict';
+  
+  var requiredModules = ['Base', 'Log', 'Detection', 'Xml', 'Docx'];
+  var missingModules = [];
+  
+  requiredModules.forEach(function(module) {
+    if (!window.MIGOP || !window.MIGOP[module]) {
+      missingModules.push('migop-' + module.toLowerCase() + '.html');
+    }
+  });
+  
+  if (missingModules.length > 0) {
+    throw new Error('migop-pipe.html requires: ' + missingModules.join(', '));
+  }
+  
+  var Base = window.MIGOP.Base;
+  var Log = window.MIGOP.Log;
+  var Detection = window.MIGOP.Detection;
+  var Xml = window.MIGOP.Xml;
+  var Docx = window.MIGOP.Docx;
+  
+  function ProcessingPipeline(logger) {
+    this.logger = logger || Log.getLogger();
+    this.docxProcessor = Docx.createProcessor(this.logger);
+    this.detector = Detection.createDetector('standard', this.logger);
+    this.transformer = Xml.createTransformer('standard', this.logger);
+    
+    this.stats = {
+      totalPipelineRuns: 0,
+      successfulRuns: 0,
+      errors: 0,
+      averageProcessingTime: 0
+    };
+    
+    this.logger.info('ProcessingPipeline', 'Pipeline initialized');
+  }
+  
+  ProcessingPipeline.prototype.process = function(docxData, callback) {
+    var self = this;
+    var startTime = new Date();
+    self.stats.totalPipelineRuns++;
+    
+    self.logger.info('ProcessingPipeline', 'Starting complete processing pipeline');
+    
+    // Step 1: Process DOCX and extract XML
+    self.docxProcessor.process(docxData, function(docxResult) {
+      if (!docxResult.success) {
+        self.logger.error('ProcessingPipeline', 'DOCX processing failed');
+        self.stats.errors++;
+        callback(docxResult);
+        return;
+      }
+      
+      self.logger.info('ProcessingPipeline', 'DOCX processing completed, starting suggestion detection');
+      
+      try {
+        // Step 2: Detect suggestions
+        var suggestions = self.detector.extractSuggestions(docxResult.modifiedXml);
+        
+        self.logger.info('ProcessingPipeline', 'Suggestion detection completed, starting XML transformation');
+        
+        // Step 3: Transform XML
+        var transformedXml = self.transformer.transformXml(docxResult.modifiedXml, suggestions);
+        
+        self.logger.info('ProcessingPipeline', 'XML transformation completed, starting DOCX rebuild');
+        
+        // Step 4: Rebuild DOCX with transformed XML
+        var docxProcessor = self.docxProcessor;
+        docxProcessor.rebuildDocx(docxResult.metadata.zip, transformedXml, function(rebuildResult) {
+          if (!rebuildResult.success) {
+            self.logger.error('ProcessingPipeline', 'DOCX rebuild failed', rebuildResult.error);
+            self.stats.errors++;
+            callback(Base.ProcessingResult.failure([rebuildResult.error]));
+            return;
+          }
+          
+          self.logger.info('ProcessingPipeline', 'DOCX rebuild completed, converting to base64');
+          
+          // Step 5: Convert rebuilt DOCX blob to base64 for Apps Script
+          docxProcessor.convertBlobToBase64(rebuildResult.docxBlob, function(conversionResult) {
+            if (!conversionResult.success) {
+              self.logger.error('ProcessingPipeline', 'Base64 conversion failed', conversionResult.error);
+              self.stats.errors++;
+              callback(Base.ProcessingResult.failure([conversionResult.error]));
+              return;
+            }
+            
+            // Step 6: Create final result with rebuilt DOCX
+            var processingTime = new Date() - startTime;
+            self.updateAverageProcessingTime(processingTime);
+            self.stats.successfulRuns++;
+            
+            var finalResult = Base.ProcessingResult.success(suggestions, transformedXml, {
+              originalSize: docxResult.metadata.originalSize,
+              processingTime: processingTime,
+              rebuiltDocxBase64: conversionResult.base64Data,
+              rebuiltDocxSize: rebuildResult.docxBlob.size,
+              pipelineStats: {
+                docxProcessor: self.docxProcessor.getStats(),
+                detector: self.detector.getStats(),
+                transformer: self.transformer.getStats()
+              },
+              rebuildMetadata: rebuildResult.metadata
+            });
+            
+            self.logger.info('ProcessingPipeline', 'Complete pipeline with DOCX rebuild finished successfully', {
+              totalSuggestions: suggestions.length,
+              processingTime: processingTime,
+              rebuiltDocxSize: rebuildResult.docxBlob.size
+            });
+            
+            callback(finalResult);
+          });
+        });
+        
+      } catch (error) {
+        self.logger.error('ProcessingPipeline', 'Pipeline processing failed', error);
+        self.stats.errors++;
+        callback(Base.ProcessingResult.failure([error.message]));
+      }
+    });
+  };
+  
+  ProcessingPipeline.prototype.updateAverageProcessingTime = function(processingTime) {
+    if (this.stats.successfulRuns === 1) {
+      this.stats.averageProcessingTime = processingTime;
+    } else {
+      this.stats.averageProcessingTime = (this.stats.averageProcessingTime * (this.stats.successfulRuns - 1) + processingTime) / this.stats.successfulRuns;
+    }
+  };
+  
+  ProcessingPipeline.prototype.getStats = function() {
+    return Base.deepClone(this.stats);
+  };
+  
+  ProcessingPipeline.prototype.resetStats = function() {
+    this.stats = {
+      totalPipelineRuns: 0,
+      successfulRuns: 0,
+      errors: 0,
+      averageProcessingTime: 0
+    };
+    this.logger.info('ProcessingPipeline', 'Statistics reset');
+  };
+  
+  function AppsScriptBridge(logger) {
+    this.logger = logger || Log.getLogger();
+    this.logger.info('AppsScriptBridge', 'Bridge service initialized');
+  }
+  
+  AppsScriptBridge.prototype.getDocxData = function(callback) {
+    var self = this;
+    self.logger.info('AppsScriptBridge', 'Requesting DOCX data from Apps Script');
+    
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      var error = 'Google Apps Script interface not available';
+      self.logger.error('AppsScriptBridge', error);
+      callback({ success: false, error: error });
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        self.logger.info('AppsScriptBridge', 'DOCX data received', {
+          success: result ? result.success : false,
+          dataSize: result && result.data ? result.data.length : 0
+        });
+        callback(result);
+      })
+      .withFailureHandler(function(error) {
+        self.logger.error('AppsScriptBridge', 'Apps Script call failed', error);
+        callback({ success: false, error: error });
+      })
+      .getDocxDataForBrowser();
+  };
+  
+  AppsScriptBridge.prototype.sendProcessedResult = function(result, callback) {
+    var self = this;
+    self.logger.info('AppsScriptBridge', 'Sending processed result to Apps Script', {
+      success: result.success,
+      suggestionsCount: result.suggestions ? result.suggestions.length : 0
+    });
+    
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      var error = 'Google Apps Script interface not available';
+      self.logger.error('AppsScriptBridge', error);
+      callback({ success: false, error: error });
+      return;
+    }
+    
+    var plainResult = {
+      success: result.success,
+      suggestions: result.suggestions ? result.suggestions.map(function(s) {
+        return { type: s.type, text: s.text, author: s.author, date: s.date };
+      }) : [],
+      errors: result.errors || [],
+      processedAt: new Date().toISOString(),
+      metadata: result.metadata || {}
+    };
+    
+    google.script.run
+      .withSuccessHandler(function(response) {
+        self.logger.info('AppsScriptBridge', 'Result sent successfully', { response: response });
+        callback(response);
+      })
+      .withFailureHandler(function(error) {
+        self.logger.error('AppsScriptBridge', 'Failed to send result', error);
+        callback({ success: false, error: error });
+      })
+      .replaceDocumentWithProcessedResult(plainResult);
+  };
+  
+  window.MIGOP.Pipe = {
+    ProcessingPipeline: ProcessingPipeline,
+    AppsScriptBridge: AppsScriptBridge,
+    
+    createPipeline: function(logger) {
+      return new ProcessingPipeline(logger);
+    },
+    
+    createBridge: function(logger) {
+      return new AppsScriptBridge(logger);
+    }
+  };
+  
+  console.log('[MIGOP] migop-pipe.html loaded successfully');
+})();
+</script>
