@@ -1,0 +1,218 @@
+<script>
+/**
+ * migop-xml.html - XML Transformation Engine
+ * Depends on: migop-base.html, migop-log.html
+ */
+(function() {
+  'use strict';
+  
+  if (!window.MIGOP || !window.MIGOP.Base || !window.MIGOP.Log) {
+    throw new Error('migop-xml.html requires migop-base.html and migop-log.html');
+  }
+  
+  var Base = window.MIGOP.Base;
+  var Log = window.MIGOP.Log;
+  var CONSTANTS = Base.CONSTANTS;
+  
+  function XmlTransformer(logger) {
+    this.logger = logger || Log.getLogger();
+    this.stats = {
+      totalTransformations: 0,
+      insertionsProcessed: 0,
+      deletionsProcessed: 0,
+      errors: 0
+    };
+    
+    this.logger.info('XmlTransformer', 'Transformer initialized');
+  }
+  
+  XmlTransformer.prototype.transformXml = function(xmlContent, suggestions) {
+    this.logger.info('XmlTransformer', 'Starting XML transformation', {
+      xmlLength: xmlContent.length,
+      suggestionsCount: suggestions.length
+    });
+    
+    var modifiedXml = xmlContent;
+    this.stats.totalTransformations++;
+    
+    try {
+      for (var i = 0; i < suggestions.length; i++) {
+        var suggestion = suggestions[i];
+        
+        this.logger.debug('XmlTransformer', 'Processing suggestion ' + (i + 1) + '/' + suggestions.length, {
+          type: suggestion.type,
+          text: suggestion.text.substring(0, 50) + (suggestion.text.length > 50 ? '...' : '')
+        });
+        
+        if (suggestion.type === CONSTANTS.SUGGESTION_TYPES.INSERTION) {
+          modifiedXml = this.processInsertion(modifiedXml, suggestion);
+          this.stats.insertionsProcessed++;
+        } else if (suggestion.type === CONSTANTS.SUGGESTION_TYPES.DELETION) {
+          modifiedXml = this.processDeletion(modifiedXml, suggestion);
+          this.stats.deletionsProcessed++;
+        }
+      }
+      
+      modifiedXml = this.cleanupSuggestionMarkup(modifiedXml);
+      
+      this.logger.info('XmlTransformer', 'XML transformation completed', {
+        originalLength: xmlContent.length,
+        modifiedLength: modifiedXml.length
+      });
+      
+      return modifiedXml;
+      
+    } catch (error) {
+      this.stats.errors++;
+      this.logger.error('XmlTransformer', 'XML transformation failed', error);
+      throw error;
+    }
+  };
+  
+  XmlTransformer.prototype.processInsertion = function(xmlContent, suggestion) {
+    this.logger.debug('XmlTransformer', 'Processing insertion', {
+      text: suggestion.text.substring(0, 50),
+      author: suggestion.author
+    });
+    
+    if (!suggestion.metadata || !suggestion.metadata.fullXml || !suggestion.metadata.innerXml) {
+      this.logger.warn('XmlTransformer', 'Insertion missing required metadata');
+      return xmlContent;
+    }
+    
+    try {
+      var underlinedContent = this.addUnderlineFormatting(suggestion.metadata.innerXml);
+      var modifiedXml = xmlContent.replace(suggestion.metadata.fullXml, underlinedContent);
+      this.logger.debug('XmlTransformer', 'Insertion processed successfully');
+      return modifiedXml;
+    } catch (error) {
+      this.logger.error('XmlTransformer', 'Failed to process insertion', error);
+      return xmlContent;
+    }
+  };
+  
+  XmlTransformer.prototype.processDeletion = function(xmlContent, suggestion) {
+    this.logger.debug('XmlTransformer', 'Processing deletion', {
+      text: suggestion.text.substring(0, 50)
+    });
+    
+    if (!suggestion.metadata || !suggestion.metadata.fullXml || !suggestion.metadata.innerXml) {
+      this.logger.warn('XmlTransformer', 'Deletion missing required metadata');
+      return xmlContent;
+    }
+    
+    try {
+      var strikethroughContent = this.addStrikethroughFormatting(suggestion.metadata.innerXml);
+      var modifiedXml = xmlContent.replace(suggestion.metadata.fullXml, strikethroughContent);
+      this.logger.debug('XmlTransformer', 'Deletion processed successfully');
+      return modifiedXml;
+    } catch (error) {
+      this.logger.error('XmlTransformer', 'Failed to process deletion', error);
+      return xmlContent;
+    }
+  };
+  
+  XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
+    this.logger.debug('XmlTransformer', 'Adding underline formatting');
+    
+    var modifiedContent = xmlContent.replace(/<w:r[^>]*>([\s\S]*?)<\/w:r>/g, function(match, runContent) {
+      if (runContent.indexOf('<w:rPr>') !== -1) {
+        return match.replace(/<w:rPr>/, '<w:rPr><w:u w:val="single"/>');
+      } else {
+        return match.replace(/<w:r[^>]*>/, function(tag) {
+          return tag + '<w:rPr><w:u w:val="single"/></w:rPr>';
+        });
+      }
+    });
+    
+    this.logger.debug('XmlTransformer', 'Underline formatting applied');
+    return modifiedContent;
+  };
+  
+  XmlTransformer.prototype.addStrikethroughFormatting = function(xmlContent) {
+    this.logger.debug('XmlTransformer', 'Adding strikethrough formatting');
+    
+    var modifiedContent = xmlContent.replace(/<w:delText([^>]*)>/g, '<w:t$1>');
+    modifiedContent = modifiedContent.replace(/<\/w:delText>/g, '</w:t>');
+    
+    modifiedContent = modifiedContent.replace(/<w:r[^>]*>([\s\S]*?)<\/w:r>/g, function(match, runContent) {
+      if (runContent.indexOf('<w:rPr>') !== -1) {
+        return match.replace(/<w:rPr>/, '<w:rPr><w:strike w:val="true"/>');
+      } else {
+        return match.replace(/<w:r[^>]*>/, function(tag) {
+          return tag + '<w:rPr><w:strike w:val="true"/></w:rPr>';
+        });
+      }
+    });
+    
+    this.logger.debug('XmlTransformer', 'Strikethrough formatting applied');
+    return modifiedContent;
+  };
+  
+  XmlTransformer.prototype.createStrikethroughXml = function(text) {
+    this.logger.debug('XmlTransformer', 'Creating strikethrough XML');
+    
+    var escapedText = text.replace(/&/g, '&amp;')
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;')
+                          .replace(/"/g, '&quot;')
+                          .replace(/'/g, '&apos;');
+    
+    var strikethroughXml = '<w:r><w:rPr><w:strike w:val="true"/></w:rPr><w:t>' + escapedText + '</w:t></w:r>';
+    
+    this.logger.debug('XmlTransformer', 'Strikethrough XML created');
+    return strikethroughXml;
+  };
+  
+  XmlTransformer.prototype.cleanupSuggestionMarkup = function(xmlContent) {
+    this.logger.debug('XmlTransformer', 'Cleaning up suggestion markup');
+    
+    var originalLength = xmlContent.length;
+    
+    var cleanedXml = xmlContent
+      .replace(/<w:ins[^>]*>/g, '')
+      .replace(/<\/w:ins>/g, '')
+      .replace(/<w:del[^>]*>/g, '')
+      .replace(/<\/w:del>/g, '');
+    
+    this.logger.debug('XmlTransformer', 'Cleanup completed', {
+      originalLength: originalLength,
+      cleanedLength: cleanedXml.length,
+      bytesRemoved: originalLength - cleanedXml.length
+    });
+    
+    return cleanedXml;
+  };
+  
+  XmlTransformer.prototype.getStats = function() {
+    return Base.deepClone(this.stats);
+  };
+  
+  XmlTransformer.prototype.resetStats = function() {
+    this.stats = {
+      totalTransformations: 0,
+      insertionsProcessed: 0,
+      deletionsProcessed: 0,
+      errors: 0
+    };
+    this.logger.info('XmlTransformer', 'Statistics reset');
+  };
+  
+  function TransformerFactory() {}
+  
+  TransformerFactory.createStandard = function(logger) {
+    return new XmlTransformer(logger);
+  };
+  
+  window.MIGOP.Xml = {
+    XmlTransformer: XmlTransformer,
+    TransformerFactory: TransformerFactory,
+    
+    createTransformer: function(type, logger) {
+      return TransformerFactory.createStandard(logger);
+    }
+  };
+  
+  console.log('[MIGOP] migop-xml.html loaded successfully');
+})();
+</script>
