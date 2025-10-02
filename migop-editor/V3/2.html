@@ -1,0 +1,1550 @@
+
+ 	
+Home
+html 2
+<script>
+
+/**
+
+ * ============================================================================
+
+ * MIGOP EDITOR 8.0 - WORKFLOW CONTROLLER MODULE
+
+ * ============================================================================
+
+ * 
+
+ * PURPOSE:
+
+ * This module manages the workflow state machine and orchestrates the
+
+ * three-phase processing pipeline with manual versioning pause points.
+
+ * 
+
+ * ============================================================================
+
+ * WORKFLOW STATE MACHINE
+
+ * ============================================================================
+
+ * 
+
+ * States:
+
+ *   IDLE          → Initial state, waiting for user to start
+
+ *   EXPORTING     → Phase 1 started: Exporting document
+
+ *   ANALYZING     → Phase 1: Analyzing suggestions
+
+ *   VERSION_1     → PAUSE: Waiting for user to create "Before" version
+
+ *   TRANSFORMING  → Phase 2 started: Processing XML
+
+ *   IMPORTING     → Phase 2: Importing processed document
+
+ *   VERSION_2     → PAUSE: Waiting for user to create "After" version
+
+ *   FINALIZING    → Phase 3: Writing version history (if Official)
+
+ *   COMPLETE      → Done state
+
+ * 
+
+ * State Transitions:
+
+ *   IDLE → EXPORTING (user clicks Start)
+
+ *   EXPORTING → ANALYZING (export complete)
+
+ *   ANALYZING → VERSION_1 (analysis complete)
+
+ *   VERSION_1 → TRANSFORMING (user clicks Resume)
+
+ *   TRANSFORMING → IMPORTING (processing complete)
+
+ *   IMPORTING → VERSION_2 (import complete)
+
+ *   VERSION_2 → FINALIZING (user clicks Resume, if Official checked)
+
+ *   VERSION_2 → COMPLETE (user clicks Resume, if not Official)
+
+ *   FINALIZING → COMPLETE (version history written)
+
+ * 
+
+ * ============================================================================
+
+ * THREE-PHASE PIPELINE
+
+ * ============================================================================
+
+ * 
+
+ * PHASE 1: Pre-Processing (Export & Analyze)
+
+ *   Step 1: Export current document as DOCX
+
+ *   Step 2: Parse DOCX XML to detect suggestions
+
+ *   Step 3: Generate summary statistics
+
+ *   Step 4: Generate "Before" version number
+
+ *   OUTPUT: Display version number, PAUSE for manual versioning
+
+ * 
+
+ * PHASE 2: Processing (Transform & Import)
+
+ *   Step 1: Load exported DOCX from Phase 1
+
+ *   Step 2: Transform XML (accept/reject suggestions)
+
+ *   Step 3: Rebuild DOCX with changes
+
+ *   Step 4: Upload to Drive and replace document
+
+ *   Step 5: Generate "After" version number
+
+ *   OUTPUT: Display version number, PAUSE for manual versioning
+
+ * 
+
+ * PHASE 3: Finalization (Optional - Official Versions Only)
+
+ *   Step 1: Collect official version data (committee, comments)
+
+ *   Step 2: Insert version history page at document start
+
+ *   Step 3: Format version history professionally
+
+ *   OUTPUT: Workflow complete
+
+ * 
+
+ * ============================================================================
+
+ * DATA PERSISTENCE BETWEEN PHASES
+
+ * ============================================================================
+
+ * 
+
+ * Since workflow pauses, we need to store intermediate data.
+
+ * Storage mechanism: In-memory JavaScript variables (session-based)
+
+ * 
+
+ * Stored data:
+
+ *   - phase1Results: {
+
+ *       exportedDocxBlob: Blob,
+
+ *       suggestionCount: number,
+
+ *       suggestionSummary: string,
+
+ *       versionNumber: string,
+
+ *       timestamp: Date
+
+ *     }
+
+ *   
+
+ *   - phase2Results: {
+
+ *       processedDocxBlob: Blob,
+
+ *       driveFileId: string,
+
+ *       versionNumber: string,
+
+ *       timestamp: Date
+
+ *     }
+
+ * 
+
+ * Note: If user refreshes sidebar, data is lost (acceptable trade-off)
+
+ * 
+
+ * ============================================================================
+
+ * INTEGRATION WITH EXISTING CODE
+
+ * ============================================================================
+
+ * 
+
+ * This controller wraps existing Code.gs functions:
+
+ *   - GoogleDocsExportService.exportDocxWithFormattingDirect()
+
+ *   - DocumentReplacementService.replaceDocumentContent()
+
+ *   - ProcessingPipeline.process() [needs to be split into phases]
+
+ * 
+
+ * Existing logging system is reused:
+
+ *   - LoggingSystem.logWithDetails() for status messages
+
+ *   - Messages are displayed in both progress tracker and log window
+
+ * 
+
+ * ============================================================================
+
+ * VERSION NUMBER GENERATION
+
+ * ============================================================================
+
+ * 
+
+ * Format: #:B/A/O:yy:mm:dd:hh:mm:ss
+
+ * 
+
+ * Components:
+
+ *   # = Sequential number (stored in Document Properties)
+
+ *   B/A/O = Version type:
+
+ *     B = Before processing (1st version)
+
+ *     A = After processing (2nd version, not official)
+
+ *     O = Official (2nd version with committee approval)
+
+ *   yy:mm:dd = Date (2-digit year, month, day)
+
+ *   hh:mm:ss = Time (24-hour format, zero-padded)
+
+ * 
+
+ * Examples:
+
+ *   1:B:25:09:29:14:30:45 (Version 1, Before, Sept 29 2025, 2:30:45 PM)
+
+ *   1:A:25:09:29:14:45:12 (Version 1, After, Sept 29 2025, 2:45:12 PM)
+
+ *   2:O:25:09:30:09:15:33 (Version 2, Official, Sept 30 2025, 9:15:33 AM)
+
+ * 
+
+ * Sequential number increments only when version is created, not per-phase.
+
+ * Both B and A versions for same workflow instance share the same #.
+
+ * 
+
+ * ============================================================================
+
+ * ERROR HANDLING
+
+ * ============================================================================
+
+ * 
+
+ * All operations wrapped in try-catch blocks.
+
+ * On error:
+
+ *   1. Log error details to debug log
+
+ *   2. Display user-friendly error message
+
+ *   3. Revert to last stable state (don't stay in broken state)
+
+ *   4. Preserve phase data for retry if possible
+
+ * 
+
+ * ============================================================================
+
+ */
+
+
+// ============================================================================
+
+// STATE MANAGEMENT
+
+// ============================================================================
+
+
+/**
+
+ * Current workflow state
+
+ * @type {string}
+
+ */
+
+let currentState = 'IDLE';
+
+
+/**
+
+ * Data from Phase 1 (persists during VERSION_1 pause)
+
+ * @type {Object|null}
+
+ */
+
+let phase1Results = null;
+
+
+/**
+
+ * Data from Phase 2 (persists during VERSION_2 pause)
+
+ * @type {Object|null}
+
+ */
+
+let phase2Results = null;
+
+
+/**
+
+ * Array of step status objects for progress tracker
+
+ * @type {Array}
+
+ */
+
+let stepStatus = [
+
+  { label: 'Start', complete: false, message: 'Ready to begin' },
+
+  { label: 'Version', complete: false, message: '' },
+
+  { label: 'Process', complete: false, message: '' },
+
+  { label: 'Version', complete: false, message: '' },
+
+  { label: 'Done', complete: false, message: '' }
+
+];
+
+
+/**
+
+ * Array of log messages for debug window
+
+ * @type {Array<string>}
+
+ */
+
+let logMessages = [];
+
+
+/**
+
+ * Current version number being used
+
+ * @type {string|null}
+
+ */
+
+let currentVersionNumber = null;
+
+
+// ============================================================================
+
+// WORKFLOW ORCHESTRATION
+
+// ============================================================================
+
+
+/**
+
+ * Start the workflow - initiates Phase 1
+
+ * Called when user clicks "Start" button
+
+ */
+
+async function startWorkflow() {
+
+  // TODO: 
+
+  // 1. Change state to EXPORTING
+
+  // 2. Update UI to show processing state
+
+  // 3. Mark Step 0 (Start) as complete
+
+  // 4. Begin Phase 1 execution
+
+  // 5. Handle any errors gracefully
+
+  
+
+  try {
+
+    currentState = 'EXPORTING';
+
+    updateStepStatus(0, true, 'Starting export...');
+
+    
+
+    await executePhase1();
+
+    
+
+  } catch (error) {
+
+    handleWorkflowError('Phase 1', error);
+
+  }
+
+}
+
+
+/**
+
+ * Resume workflow from first version pause
+
+ * Called when user clicks "Resume" after creating Before version
+
+ */
+
+async function resumeFromVersion1() {
+
+  // TODO:
+
+  // 1. Verify phase1Results exists (data from previous phase)
+
+  // 2. Change state to TRANSFORMING
+
+  // 3. Mark Step 1 (Version) as complete
+
+  // 4. Copy version number from clipboard to step status display
+
+  // 5. Begin Phase 2 execution
+
+  // 6. Handle any errors gracefully
+
+  
+
+  try {
+
+    if (!phase1Results) {
+
+      throw new Error('Phase 1 data not found. Please restart workflow.');
+
+    }
+
+    
+
+    currentState = 'TRANSFORMING';
+
+    updateStepStatus(1, true, `Versioned as ${currentVersionNumber}`);
+
+    
+
+    await executePhase2();
+
+    
+
+  } catch (error) {
+
+    handleWorkflowError('Phase 2', error);
+
+  }
+
+}
+
+
+/**
+
+ * Resume workflow from second version pause
+
+ * Called when user clicks "Resume" after creating After/Official version
+
+ * @param {Object|null} officialData - If Official checkbox checked: {committee, comments}
+
+ */
+
+async function resumeFromVersion2(officialData = null) {
+
+  // TODO:
+
+  // 1. Verify phase2Results exists
+
+  // 2. Mark Step 3 (Version) as complete
+
+  // 3. Copy version number from clipboard to step status display
+
+  // 4. If officialData provided:
+
+  //    - Change state to FINALIZING
+
+  //    - Begin Phase 3 execution (write version history)
+
+  // 5. Else:
+
+  //    - Change state to COMPLETE
+
+  //    - Mark Step 4 (Done) as complete
+
+  // 6. Handle any errors gracefully
+
+  
+
+  try {
+
+    if (!phase2Results) {
+
+      throw new Error('Phase 2 data not found. Please restart workflow.');
+
+    }
+
+    
+
+    updateStepStatus(3, true, `Versioned as ${currentVersionNumber}`);
+
+    
+
+    if (officialData) {
+
+      currentState = 'FINALIZING';
+
+      await executePhase3(officialData);
+
+    } else {
+
+      currentState = 'COMPLETE';
+
+      completeWorkflow();
+
+    }
+
+    
+
+  } catch (error) {
+
+    handleWorkflowError('Phase 3', error);
+
+  }
+
+}
+
+
+// ============================================================================
+
+// PHASE EXECUTION
+
+// ============================================================================
+
+
+/**
+
+ * Execute Phase 1: Export document and analyze suggestions
+
+ * Ends at VERSION_1 pause point
+
+ */
+
+async function executePhase1() {
+
+  // TODO: Implement Phase 1 pipeline
+
+  
+
+  // Step 1: Export document
+
+  updateStepStatus(0, false, 'Exporting document as DOCX...');
+
+  logMessage('Phase 1: Starting document export');
+
+  
+
+  // Call existing Code.gs function via google.script.run
+
+  // const docxBlob = await callServerFunction('exportDocument');
+
+  
+
+  // Step 2: Analyze exported DOCX for suggestions
+
+  currentState = 'ANALYZING';
+
+  updateStepStatus(0, false, 'Analyzing tracked changes...');
+
+  logMessage('Phase 1: Analyzing suggestions in document');
+
+  
+
+  // Parse DOCX XML to count suggestions
+
+  // const analysisResult = await analyzeSuggestions(docxBlob);
+
+  
+
+  // Step 3: Generate version number for "Before" version
+
+  logMessage('Phase 1: Generating version number');
+
+  // const versionNum = await callServerFunction('getNextVersionNumber');
+
+  // const formattedVersion = formatVersionNumber(versionNum, 'B');
+
+  
+
+  // Step 4: Store results and pause
+
+  // phase1Results = {
+
+  //   exportedDocxBlob: docxBlob,
+
+  //   suggestionCount: analysisResult.count,
+
+  //   suggestionSummary: analysisResult.summary,
+
+  //   versionNumber: formattedVersion,
+
+  //   timestamp: new Date()
+
+  // };
+
+  
+
+  // currentVersionNumber = formattedVersion;
+
+  // copyToClipboard(formattedVersion);
+
+  
+
+  // Transition to VERSION_1 pause state
+
+  currentState = 'VERSION_1';
+
+  updateStepStatus(0, true, 'Export complete');
+
+  updateStepStatus(1, false, 'Please create "Before" version in Google Docs');
+
+  logMessage(`Phase 1: Complete. Version number: ${currentVersionNumber}`);
+
+  
+
+  // Update UI to show version section and Resume button
+
+  updateUIForState();
+
+}
+
+
+/**
+
+ * Execute Phase 2: Process document and import changes
+
+ * Ends at VERSION_2 pause point
+
+ */
+
+async function executePhase2() {
+
+  // TODO: Implement Phase 2 pipeline
+
+  
+
+  // Step 1: Transform XML (process suggestions)
+
+  updateStepStatus(2, false, 'Processing tracked changes...');
+
+  logMessage('Phase 2: Starting XML transformation');
+
+  
+
+  // Use phase1Results.exportedDocxBlob as input
+
+  // Call existing processing pipeline (needs to be refactored to accept blob)
+
+  // const processedBlob = await processDocxTransformation(phase1Results.exportedDocxBlob);
+
+  
+
+  // Step 2: Upload to Drive
+
+  currentState = 'IMPORTING';
+
+  updateStepStatus(2, false, 'Uploading processed document...');
+
+  logMessage('Phase 2: Uploading to Drive');
+
+  
+
+  // const driveFileId = await uploadToDrive(processedBlob);
+
+  
+
+  // Step 3: Replace document content
+
+  updateStepStatus(2, false, 'Replacing document content...');
+
+  logMessage('Phase 2: Replacing document content');
+
+  
+
+  // await callServerFunction('replaceDocumentContent', driveFileId);
+
+  
+
+  // Step 4: Generate version number for "After" version
+
+  logMessage('Phase 2: Generating version number');
+
+  // const versionNum = await callServerFunction('getNextVersionNumber');
+
+  // Note: Use same sequential # as Phase 1, but 'A' type
+
+  // const formattedVersion = formatVersionNumber(versionNum, 'A');
+
+  
+
+  // Step 5: Store results and pause
+
+  // phase2Results = {
+
+  //   processedDocxBlob: processedBlob,
+
+  //   driveFileId: driveFileId,
+
+  //   versionNumber: formattedVersion,
+
+  //   timestamp: new Date()
+
+  // };
+
+  
+
+  // currentVersionNumber = formattedVersion;
+
+  // copyToClipboard(formattedVersion);
+
+  
+
+  // Transition to VERSION_2 pause state
+
+  currentState = 'VERSION_2';
+
+  updateStepStatus(2, true, 'Processing complete');
+
+  updateStepStatus(3, false, 'Please create "After" version in Google Docs');
+
+  logMessage(`Phase 2: Complete. Version number: ${currentVersionNumber}`);
+
+  
+
+  // Update UI to show version section with Official checkbox option
+
+  updateUIForState();
+
+}
+
+
+/**
+
+ * Execute Phase 3: Write version history (Official versions only)
+
+ * Ends at COMPLETE state
+
+ * @param {Object} officialData - {committee: string, comments: string}
+
+ */
+
+async function executePhase3(officialData) {
+
+  // TODO: Implement Phase 3 pipeline
+
+  
+
+  updateStepStatus(4, false, 'Writing version history...');
+
+  logMessage('Phase 3: Writing official version history');
+
+  
+
+  // Update version number format from 'A' to 'O'
+
+  // const versionNum = extractSequentialNumber(currentVersionNumber);
+
+  // currentVersionNumber = formatVersionNumber(versionNum, 'O');
+
+  
+
+  // Prepare version history data
+
+  // const versionData = {
+
+  //   number: currentVersionNumber,
+
+  //   type: 'Official',
+
+  //   timestamp: new Date(),
+
+  //   committee: officialData.committee,
+
+  //   comments: officialData.comments
+
+  // };
+
+  
+
+  // Call server function to insert version history page
+
+  logMessage('Phase 3: Inserting version history page into document');
+
+  // await callServerFunction('writeVersionHistory', versionData);
+
+  
+
+  // Complete workflow
+
+  currentState = 'COMPLETE';
+
+  completeWorkflow();
+
+  logMessage('Phase 3: Official version history written successfully');
+
+}
+
+
+/**
+
+ * Complete the workflow - final state
+
+ */
+
+function completeWorkflow() {
+
+  updateStepStatus(4, true, 'Workflow complete!');
+
+  logMessage('=== WORKFLOW COMPLETE ===');
+
+  
+
+  // Update UI to show completion state
+
+  updateUIForState();
+
+  
+
+  // Show success notification
+
+  showNotification('MIGOP Editor workflow completed successfully!', 'success');
+
+}
+
+
+// ============================================================================
+
+// VERSION NUMBER MANAGEMENT
+
+// ============================================================================
+
+
+/**
+
+ * Format a version number with sequential number, type, and timestamp
+
+ * @param {number} sequentialNum - Sequential version number from Document Properties
+
+ * @param {string} type - 'B', 'A', or 'O'
+
+ * @returns {string} Formatted version number: #:B/A/O:yy:mm:dd:hh:mm:ss
+
+ */
+
+function formatVersionNumber(sequentialNum, type) {
+
+  // TODO: Create formatted version string
+
+  // const now = new Date();
+
+  // const yy = String(now.getFullYear()).slice(-2).padStart(2, '0');
+
+  // const mm = String(now.getMonth() + 1).padStart(2, '0');
+
+  // const dd = String(now.getDate()).padStart(2, '0');
+
+  // const hh = String(now.getHours()).padStart(2, '0');
+
+  // const min = String(now.getMinutes()).padStart(2, '0');
+
+  // const ss = String(now.getSeconds()).padStart(2, '0');
+
+  // 
+
+  // return `${sequentialNum}:${type}:${yy}:${mm}:${dd}:${hh}:${min}:${ss}`;
+
+  
+
+  return '1:B:25:09:29:14:30:45'; // Placeholder
+
+}
+
+
+/**
+
+ * Extract sequential number from formatted version string
+
+ * @param {string} versionString - Formatted version (e.g., "1:B:25:09:29:14:30:45")
+
+ * @returns {number} Sequential number
+
+ */
+
+function extractSequentialNumber(versionString) {
+
+  // TODO: Parse version string and return first component
+
+  // const parts = versionString.split(':');
+
+  // return parseInt(parts[0]);
+
+  
+
+  return 1; // Placeholder
+
+}
+
+
+// ============================================================================
+
+// STATE UPDATES & UI SYNCHRONIZATION
+
+// ============================================================================
+
+
+/**
+
+ * Update a specific step's status
+
+ * @param {number} stepIndex - Index of step (0-4)
+
+ * @param {boolean} complete - Whether step is complete
+
+ * @param {string} message - Status message to display
+
+ */
+
+function updateStepStatus(stepIndex, complete, message) {
+
+  // TODO: Update stepStatus array
+
+  // stepStatus[stepIndex].complete = complete;
+
+  // stepStatus[stepIndex].message = message;
+
+  
+
+  // Push update to UI
+
+  // updateUIForState();
+
+}
+
+
+/**
+
+ * Update UI based on current workflow state
+
+ * Calls UI module functions to refresh display
+
+ */
+
+function updateUIForState() {
+
+  // TODO: Build complete UI state object and send to UI module
+
+  
+
+  // Determine which version section to show (if any)
+
+  let versionType = null;
+
+  if (currentState === 'VERSION_1') {
+
+    versionType = 'B';
+
+  } else if (currentState === 'VERSION_2') {
+
+    versionType = 'A'; // Can become 'O' if checkbox checked
+
+  }
+
+  
+
+  // Build UI state object
+
+  const uiState = {
+
+    workflowState: currentState,
+
+    steps: stepStatus,
+
+    versionNumber: currentVersionNumber,
+
+    versionType: versionType,
+
+    logMessages: logMessages
+
+  };
+
+  
+
+  // Call UI module update function
+
+  // updateUI(uiState);
+
+}
+
+
+/**
+
+ * Add a message to the log
+
+ * @param {string} message - Log message
+
+ */
+
+function logMessage(message) {
+
+  // TODO: Add timestamp and append to logMessages array
+
+  const timestamp = new Date().toISOString().slice(11, 19); // HH:MM:SS format
+
+  const formattedMessage = `[${timestamp}] ${message}`;
+
+  logMessages.push(formattedMessage);
+
+  
+
+  // Update log window in UI
+
+  // appendLogMessage(formattedMessage);
+
+}
+
+
+// ============================================================================
+
+// SERVER COMMUNICATION
+
+// ============================================================================
+
+
+/**
+
+ * Call a Google Apps Script server function
+
+ * Wrapper around google.script.run with promise support
+
+ * @param {string} functionName - Name of Code.gs function to call
+
+ * @param {...*} args - Arguments to pass to function
+
+ * @returns {Promise} Promise that resolves with function result
+
+ */
+
+function callServerFunction(functionName, ...args) {
+
+  // TODO: Wrap google.script.run in Promise
+
+  return new Promise((resolve, reject) => {
+
+    google.script.run
+
+      .withSuccessHandler(resolve)
+
+      .withFailureHandler(reject)
+
+      [functionName](...args);
+
+  });
+
+}
+
+
+/**
+
+ * Export current document as DOCX
+
+ * @returns {Promise<Blob>} DOCX file as Blob
+
+ */
+
+async function exportDocument() {
+
+  // TODO: Call server function to export
+
+  logMessage('Calling server: exportDocument');
+
+  
+
+  try {
+
+    // const result = await callServerFunction('exportDocxWithFormattingDirect');
+
+    // return result; // Expecting Blob or base64 string
+
+    return null; // Placeholder
+
+  } catch (error) {
+
+    throw new Error(`Export failed: ${error.message}`);
+
+  }
+
+}
+
+
+/**
+
+ * Upload processed DOCX to Drive and replace document
+
+ * @param {Blob} docxBlob - Processed DOCX file
+
+ * @returns {Promise<string>} Drive file ID
+
+ */
+
+async function uploadAndReplace(docxBlob) {
+
+  // TODO: Upload to Drive, then replace document content
+
+  logMessage('Calling server: uploadAndReplace');
+
+  
+
+  try {
+
+    // Convert blob to base64 for transfer to server
+
+    // const base64Data = await blobToBase64(docxBlob);
+
+    // const result = await callServerFunction('replaceDocumentContent', base64Data);
+
+    // return result.fileId;
+
+    return 'dummy-file-id'; // Placeholder
+
+  } catch (error) {
+
+    throw new Error(`Upload/replace failed: ${error.message}`);
+
+  }
+
+}
+
+
+// ============================================================================
+
+// DOCX PROCESSING (Client-Side)
+
+// ============================================================================
+
+
+/**
+
+ * Analyze DOCX for suggestions and tracked changes
+
+ * @param {Blob} docxBlob - DOCX file to analyze
+
+ * @returns {Promise<Object>} Analysis result: {count, summary}
+
+ */
+
+async function analyzeSuggestions(docxBlob) {
+
+  // TODO: Use JSZip to extract and parse document.xml
+
+  logMessage('Analyzing document for suggestions');
+
+  
+
+  try {
+
+    // const zip = new JSZip();
+
+    // await zip.loadAsync(docxBlob);
+
+    // const documentXml = await zip.file('word/document.xml').async('text');
+
+    
+
+    // Parse XML to find suggestion elements
+
+    // Look for: <w:ins>, <w:del>, <w:moveFrom>, <w:moveTo>
+
+    
+
+    // Count suggestions and build summary
+
+    // const count = countSuggestionElements(documentXml);
+
+    // const summary = buildSuggestionSummary(documentXml);
+
+    
+
+    return {
+
+      count: 0, // Placeholder
+
+      summary: 'No suggestions found' // Placeholder
+
+    };
+
+  } catch (error) {
+
+    throw new Error(`Suggestion analysis failed: ${error.message}`);
+
+  }
+
+}
+
+
+/**
+
+ * Process DOCX transformation (accept/reject suggestions)
+
+ * @param {Blob} docxBlob - Original DOCX with suggestions
+
+ * @returns {Promise<Blob>} Processed DOCX with suggestions resolved
+
+ */
+
+async function processDocxTransformation(docxBlob) {
+
+  // TODO: Use JSZip to modify document.xml
+
+  logMessage('Processing document transformations');
+
+  
+
+  try {
+
+    // const zip = new JSZip();
+
+    // await zip.loadAsync(docxBlob);
+
+    
+
+    // Extract document.xml
+
+    // const documentXml = await zip.file('word/document.xml').async('text');
+
+    
+
+    // Transform XML (call existing transformation logic)
+
+    // const transformedXml = applyTransformations(documentXml);
+
+    
+
+    // Replace document.xml in zip
+
+    // zip.file('word/document.xml', transformedXml);
+
+    
+
+    // Generate new DOCX blob
+
+    // const processedBlob = await zip.generateAsync({type: 'blob'});
+
+    // return processedBlob;
+
+    
+
+    return docxBlob; // Placeholder - return original
+
+  } catch (error) {
+
+    throw new Error(`Document transformation failed: ${error.message}`);
+
+  }
+
+}
+
+
+// ============================================================================
+
+// ERROR HANDLING
+
+// ============================================================================
+
+
+/**
+
+ * Handle workflow errors gracefully
+
+ * @param {string} phaseName - Name of phase where error occurred
+
+ * @param {Error} error - Error object
+
+ */
+
+function handleWorkflowError(phaseName, error) {
+
+  // TODO: Log error details
+
+  logMessage(`ERROR in ${phaseName}: ${error.message}`);
+
+  console.error(`Workflow error in ${phaseName}:`, error);
+
+  
+
+  // Show user-friendly error message
+
+  showNotification(`Error in ${phaseName}: ${error.message}`, 'error');
+
+  
+
+  // Revert to last stable state
+
+  // If in Phase 1: return to IDLE
+
+  // If in Phase 2: return to VERSION_1
+
+  // If in Phase 3: return to VERSION_2
+
+  
+
+  switch (phaseName) {
+
+    case 'Phase 1':
+
+      currentState = 'IDLE';
+
+      updateStepStatus(0, false, 'Error occurred - ready to retry');
+
+      break;
+
+    case 'Phase 2':
+
+      currentState = 'VERSION_1';
+
+      updateStepStatus(2, false, 'Error occurred - ready to retry');
+
+      break;
+
+    case 'Phase 3':
+
+      currentState = 'VERSION_2';
+
+      updateStepStatus(4, false, 'Error occurred - ready to retry');
+
+      break;
+
+  }
+
+  
+
+  updateUIForState();
+
+}
+
+
+/**
+
+ * Reset workflow to initial state
+
+ * Called if user wants to start over
+
+ */
+
+function resetWorkflow() {
+
+  // TODO: Clear all state and return to IDLE
+
+  currentState = 'IDLE';
+
+  phase1Results = null;
+
+  phase2Results = null;
+
+  currentVersionNumber = null;
+
+  
+
+  stepStatus = [
+
+    { label: 'Start', complete: false, message: 'Ready to begin' },
+
+    { label: 'Version', complete: false, message: '' },
+
+    { label: 'Process', complete: false, message: '' },
+
+    { label: 'Version', complete: false, message: '' },
+
+    { label: 'Done', complete: false, message: '' }
+
+  ];
+
+  
+
+  logMessages = [];
+
+  logMessage('Workflow reset to initial state');
+
+  
+
+  updateUIForState();
+
+}
+
+
+// ============================================================================
+
+// UTILITY FUNCTIONS
+
+// ============================================================================
+
+
+/**
+
+ * Convert Blob to base64 string
+
+ * @param {Blob} blob - Blob to convert
+
+ * @returns {Promise<string>} Base64 encoded string
+
+ */
+
+function blobToBase64(blob) {
+
+  return new Promise((resolve, reject) => {
+
+    const reader = new FileReader();
+
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+
+    reader.onerror = reject;
+
+    reader.readAsDataURL(blob);
+
+  });
+
+}
+
+
+/**
+
+ * Copy text to clipboard
+
+ * @param {string} text - Text to copy
+
+ */
+
+function copyToClipboard(text) {
+
+  // TODO: Use Clipboard API
+
+  if (navigator.clipboard) {
+
+    navigator.clipboard.writeText(text).then(() => {
+
+      logMessage(`Copied to clipboard: ${text}`);
+
+      showNotification('Version number copied to clipboard', 'success');
+
+    }).catch(err => {
+
+      logMessage(`Clipboard copy failed: ${err.message}`);
+
+    });
+
+  }
+
+}
+
+
+/**
+
+ * Show notification to user
+
+ * @param {string} message - Notification message
+
+ * @param {string} type - 'success', 'error', or 'info'
+
+ */
+
+function showNotification(message, type) {
+
+  // TODO: Call UI module notification function
+
+  // This should display a toast/alert at top of interface
+
+  console.log(`[${type.toUpperCase()}] ${message}`);
+
+}
+
+
+// ============================================================================
+
+// INITIALIZATION
+
+// ============================================================================
+
+
+/**
+
+ * Initialize workflow controller when module loads
+
+ */
+
+function initializeWorkflowController() {
+
+  // TODO: Set up initial state
+
+  logMessage('MIGOP Editor 8.0 - Workflow Controller initialized');
+
+  logMessage('Ready to start workflow');
+
+  
+
+  // Send initial state to UI
+
+  updateUIForState();
+
+}
+
+
+// Auto-initialize when module loads
+
+initializeWorkflowController();
+
+
+// ============================================================================
+
+// EXPORTS (for UI module to call)
+
+// ============================================================================
+
+
+// The following functions are called by the UI module:
+
+// - startWorkflow()
+
+// - resumeFromVersion1()
+
+// - resumeFromVersion2(officialData)
+
+// - resetWorkflow()
+
+
+</script>
+
+
