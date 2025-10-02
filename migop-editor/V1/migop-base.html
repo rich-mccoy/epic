@@ -1,0 +1,106 @@
+<script>
+/**
+ * migop-base.html - Base Classes and Interfaces
+ * Core foundation for MIGOP Editor 7.0
+ */
+(function() {
+  'use strict';
+  
+  window.MIGOP = window.MIGOP || {};
+  
+  // Value Objects
+  function Suggestion(type, text, author, date, metadata) {
+    this.type = type || '';
+    this.text = text || '';
+    this.author = author || '';
+    this.date = date || '';
+    this.metadata = metadata || {};
+    this.createdAt = new Date().toISOString();
+    Object.freeze(this);
+  }
+  
+  Suggestion.createInsertion = function(text, author, date, metadata) {
+    return new Suggestion('insertion', text, author, date, metadata);
+  };
+  
+  Suggestion.createDeletion = function(text, metadata) {
+    return new Suggestion('deletion', text, '', '', metadata);
+  };
+  
+  function ProcessingResult(success, suggestions, modifiedXml, errors, metadata) {
+    this.success = success || false;
+    this.suggestions = suggestions || [];
+    this.modifiedXml = modifiedXml || '';
+    this.errors = errors || [];
+    this.metadata = metadata || {};
+    this.processedAt = new Date().toISOString();
+    Object.freeze(this);
+  }
+  
+  ProcessingResult.success = function(suggestions, modifiedXml, metadata) {
+    return new ProcessingResult(true, suggestions, modifiedXml, [], metadata);
+  };
+  
+  ProcessingResult.failure = function(errors, metadata) {
+    var errorArray = Array.isArray(errors) ? errors : [errors];
+    return new ProcessingResult(false, [], '', errorArray, metadata);
+  };
+  
+  // Utility functions
+  function deepClone(obj) {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (obj instanceof Date) return new Date(obj.getTime());
+    if (Array.isArray(obj)) return obj.map(deepClone);
+    
+    var cloned = {};
+    for (var key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        cloned[key] = deepClone(obj[key]);
+      }
+    }
+    return cloned;
+  }
+  
+  function generateId() {
+    return 'migop_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+  }
+  
+  function formatElapsed(milliseconds) {
+    if (milliseconds < 1000) return milliseconds + 'ms';
+    if (milliseconds < 60000) return (milliseconds / 1000).toFixed(1) + 's';
+    return (milliseconds / 60000).toFixed(1) + 'm';
+  }
+  
+  // Constants
+  var CONSTANTS = {
+    SUGGESTION_TYPES: {
+      INSERTION: 'insertion',
+      DELETION: 'deletion'
+    },
+    LOG_LEVELS: {
+      ERROR: 'ERROR',
+      WARN: 'WARN',
+      INFO: 'INFO',
+      DEBUG: 'DEBUG'
+    },
+    STATUS_TYPES: {
+      SUCCESS: 'success',
+      ERROR: 'error',
+      WARNING: 'warning',
+      INFO: 'info'
+    }
+  };
+  
+  // Export to MIGOP namespace
+  window.MIGOP.Base = {
+    Suggestion: Suggestion,
+    ProcessingResult: ProcessingResult,
+    deepClone: deepClone,
+    generateId: generateId,
+    formatElapsed: formatElapsed,
+    CONSTANTS: CONSTANTS
+  };
+  
+  console.log('[MIGOP] migop-base.html loaded successfully');
+})();
+</script>
