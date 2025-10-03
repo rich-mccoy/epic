@@ -28,10 +28,6 @@ var V3_CONFIG = {
 // MENU INTEGRATION
 // ============================================================================
 
-/**
- * Adds MIGOP Editor menu to Google Docs
- * Called automatically when document opens
- */
 function onOpen() {
   DocumentApp.getUi()
     .createMenu('MIGOP Editor')
@@ -41,15 +37,11 @@ function onOpen() {
     .addToUi();
 }
 
-/**
- * Main entry point for V3 - creates and displays the sidebar
- */
 function showV3Sidebar() {
   try {
     console.log('=== MIGOP Editor V3 Bootstrap Starting ===');
     console.log('Bootstrap URL: ' + V3_CONFIG.BOOTSTRAP_URL);
     
-    // Fetch bootstrap configuration from GitHub
     var config = fetchBootstrapConfig();
     
     if (!config.success) {
@@ -62,10 +54,8 @@ function showV3Sidebar() {
       config = getFallbackConfig();
     }
     
-    // Generate HTML with all modules
     var html = generateSidebarHTML(config);
     
-    // Display sidebar
     var htmlOutput = HtmlService.createHtmlOutput(html)
       .setTitle('MIGOP Editor V3')
       .setWidth(500);
@@ -81,12 +71,9 @@ function showV3Sidebar() {
 }
 
 // ============================================================================
-// BOOTSTRAP SYSTEM (from V2)
+// BOOTSTRAP SYSTEM
 // ============================================================================
 
-/**
- * Fetches bootstrap configuration from GitHub
- */
 function fetchBootstrapConfig() {
   try {
     console.log('Fetching bootstrap config from: ' + V3_CONFIG.BOOTSTRAP_URL);
@@ -135,9 +122,6 @@ function fetchBootstrapConfig() {
   }
 }
 
-/**
- * Generate HTML for sidebar with all modules
- */
 function generateSidebarHTML(configResult) {
   var config = configResult.config;
   var html = [];
@@ -159,7 +143,7 @@ function generateSidebarHTML(configResult) {
   html.push('  <div id="status">Loading MIGOP Editor v' + (config.version || '3.0') + '...</div>');
   html.push('  <div id="app"><div class="loading">Initializing modules...</div></div>');
   
-  // Add JSZip dependency
+  // Add JSZip
   if (config.dependencies && config.dependencies.jszip) {
     html.push('  <script src="' + config.dependencies.jszip + '"></script>');
   } else {
@@ -179,54 +163,72 @@ function generateSidebarHTML(configResult) {
   html.push('    console.log("Bootstrap: Starting module load...");');
   html.push('  </script>');
   
-  // Sort and load modules by priority
+  // Sort and load modules
   var sortedModules = config.modules.slice().sort(function(a, b) {
     return (a.priority || 100) - (b.priority || 100);
   });
   
   console.log('Loading ' + sortedModules.length + ' modules in priority order...');
   
-  for (var i = 0; i < sortedModules.length; i++) {
-    var module = sortedModules[i];
-    var moduleName = module.name;
-    var moduleUrl = module.url;
-    
-    console.log('Loading module ' + (i + 1) + '/' + sortedModules.length + ': ' + moduleName);
-    
-    html.push('  <script>');
-    html.push('    (function() {');
-    html.push('      console.log("Loading module: ' + moduleName + '");');
-    html.push('      fetch("' + moduleUrl + '")');
-    html.push('        .then(function(response) {');
-    html.push('          if (!response.ok) throw new Error("HTTP " + response.status);');
-    html.push('          return response.text();');
-    html.push('        })');
-    html.push('        .then(function(code) {');
-    html.push('          console.log("Module ' + moduleName + ' fetched (" + code.length + " bytes)");');
-    html.push('          eval(code);');
-    html.push('          console.log("Module ' + moduleName + ' loaded successfully");');
-    html.push('        })');
-    html.push('        .catch(function(error) {');
-    html.push('          console.error("Failed to load module ' + moduleName + ':", error);');
-    html.push('          var statusDiv = document.getElementById("status");');
-    html.push('          if (statusDiv) {');
-    html.push('            statusDiv.innerHTML += "<br>⚠️ Module ' + moduleName + ' failed";');
-    html.push('            statusDiv.style.background = "#fff3cd";');
-    html.push('          }');
-    html.push('        });');
-    html.push('    })();');
-    html.push('  </script>');
-  }
-  
-  // Finalization
+  // Generate sequential module loading using script injection (CSP-safe)
   html.push('  <script>');
-  html.push('    setTimeout(function() {');
-  html.push('      var statusDiv = document.getElementById("status");');
-  html.push('      if (statusDiv && !statusDiv.innerHTML.includes("failed")) {');
-  html.push('        statusDiv.innerHTML = "✓ MIGOP Editor V3 ready";');
-  html.push('        statusDiv.style.background = "#e8f5e9"; statusDiv.style.color = "#2e7d32";');
+  html.push('    (function() {');
+  html.push('      var modules = ' + JSON.stringify(sortedModules) + ';');
+  html.push('      var currentIndex = 0;');
+  html.push('      ');
+  html.push('      function loadNextModule() {');
+  html.push('        if (currentIndex >= modules.length) {');
+  html.push('          console.log("All modules loaded successfully");');
+  html.push('          setTimeout(function() {');
+  html.push('            var statusDiv = document.getElementById("status");');
+  html.push('            if (statusDiv && !statusDiv.innerHTML.includes("failed")) {');
+  html.push('              statusDiv.innerHTML = "✓ MIGOP Editor V3 ready";');
+  html.push('              statusDiv.style.background = "#e8f5e9";');
+  html.push('              statusDiv.style.color = "#2e7d32";');
+  html.push('            }');
+  html.push('          }, 500);');
+  html.push('          return;');
+  html.push('        }');
+  html.push('        ');
+  html.push('        var module = modules[currentIndex];');
+  html.push('        console.log("Loading module " + (currentIndex + 1) + "/" + modules.length + ": " + module.name);');
+  html.push('        ');
+  html.push('        fetch(module.url)');
+  html.push('          .then(function(response) {');
+  html.push('            if (!response.ok) throw new Error("HTTP " + response.status);');
+  html.push('            return response.text();');
+  html.push('          })');
+  html.push('          .then(function(code) {');
+  html.push('            console.log("Module " + module.name + " fetched (" + code.length + " bytes)");');
+  html.push('            var scriptCode = code;');
+  html.push('            var scriptMatch = code.match(/<script[^>]*>([\\s\\S]*?)<\\/script>/i);');
+  html.push('            if (scriptMatch && scriptMatch[1]) {');
+  html.push('              scriptCode = scriptMatch[1];');
+  html.push('              console.log("Extracted from <script> tags");');
+  html.push('            }');
+  html.push('            ');
+  html.push('            var script = document.createElement("script");');
+  html.push('            script.type = "text/javascript";');
+  html.push('            script.text = scriptCode;');
+  html.push('            document.head.appendChild(script);');
+  html.push('            console.log("Module " + module.name + " loaded successfully");');
+  html.push('            currentIndex++;');
+  html.push('            setTimeout(loadNextModule, 100);');
+  html.push('          })');
+  html.push('          .catch(function(error) {');
+  html.push('            console.error("Failed to load module " + module.name + ":", error);');
+  html.push('            var statusDiv = document.getElementById("status");');
+  html.push('            if (statusDiv) {');
+  html.push('              statusDiv.innerHTML += "<br>⚠️ Module " + module.name + " failed: " + error.message;');
+  html.push('              statusDiv.style.background = "#fff3cd";');
+  html.push('            }');
+  html.push('            currentIndex++;');
+  html.push('            loadNextModule();');
+  html.push('          });');
   html.push('      }');
-  html.push('    }, 2000);');
+  html.push('      ');
+  html.push('      loadNextModule();');
+  html.push('    })();');
   html.push('  </script>');
   
   html.push('</body>');
@@ -236,9 +238,6 @@ function generateSidebarHTML(configResult) {
   return html.join('\n');
 }
 
-/**
- * Show error message in sidebar
- */
 function showErrorSidebar(errorMessage) {
   var html = [
     '<!DOCTYPE html><html><head><base target="_top"><style>',
@@ -264,9 +263,6 @@ function showErrorSidebar(errorMessage) {
   DocumentApp.getUi().showSidebar(htmlOutput);
 }
 
-/**
- * Fallback configuration
- */
 function getFallbackConfig() {
   console.log('Using fallback configuration');
   return {
@@ -286,12 +282,9 @@ function getFallbackConfig() {
 }
 
 // ============================================================================
-// V1 SERVER FUNCTIONS (Document Export & Replace)
+// V1 SERVER FUNCTIONS
 // ============================================================================
 
-/**
- * Logging utility for server-side
- */
 function AppsScriptLogger() {
   this.sessionId = Utilities.getUuid().substring(0, 8);
   this.startTime = new Date();
@@ -312,9 +305,6 @@ AppsScriptLogger.prototype.error = function(component, message, error) {
   return this.log('ERROR', component, message, {message: error.message, stack: error.stack}); 
 };
 
-/**
- * Export current Google Doc as DOCX
- */
 function exportDocumentAsDocx() {
   var logger = new AppsScriptLogger();
   logger.info('ExportService', 'Starting DOCX export');
@@ -363,9 +353,6 @@ function exportDocumentAsDocx() {
   }
 }
 
-/**
- * Replace document content with processed DOCX
- */
 function replaceDocumentWithProcessedDocx(base64Data) {
   var logger = new AppsScriptLogger();
   logger.info('ReplaceService', 'Starting document replacement');
@@ -421,14 +408,9 @@ function replaceDocumentWithProcessedDocx(base64Data) {
 }
 
 // ============================================================================
-// V3 VERSION MANAGEMENT FUNCTIONS
+// V3 VERSION MANAGEMENT
 // ============================================================================
 
-/**
- * Get or increment version counter
- * @param {boolean} increment - Whether to increment the counter
- * @returns {number} Current or incremented version counter
- */
 function getOrIncrementVersionCounter(increment) {
   var logger = new AppsScriptLogger();
   logger.info('VersionManager', 'Getting version counter', {increment: increment});
@@ -452,13 +434,10 @@ function getOrIncrementVersionCounter(increment) {
     return numericCount;
   } catch (error) {
     logger.error('VersionManager', 'Failed to get version counter', error);
-    return 1; // Default to 1 on error
+    return 1;
   }
 }
 
-/**
- * Get document property
- */
 function getDocumentProperty(key) {
   try {
     var properties = PropertiesService.getDocumentProperties();
@@ -469,9 +448,6 @@ function getDocumentProperty(key) {
   }
 }
 
-/**
- * Set document property
- */
 function setDocumentProperty(key, value) {
   try {
     var properties = PropertiesService.getDocumentProperties();
@@ -483,9 +459,6 @@ function setDocumentProperty(key, value) {
   }
 }
 
-/**
- * Save version metadata to Document Properties
- */
 function saveVersionMetadata(versionData) {
   var logger = new AppsScriptLogger();
   logger.info('VersionManager', 'Saving version metadata', {versionNumber: versionData.versionNumber});
@@ -499,7 +472,6 @@ function saveVersionMetadata(versionData) {
       history = JSON.parse(historyJson);
     }
     
-    // Add new version to beginning (newest first)
     history.unshift({
       versionNumber: versionData.versionNumber,
       committee: versionData.committee,
@@ -517,9 +489,6 @@ function saveVersionMetadata(versionData) {
   }
 }
 
-/**
- * Load version metadata from Document Properties
- */
 function loadVersionMetadata() {
   try {
     var properties = PropertiesService.getDocumentProperties();
@@ -536,10 +505,6 @@ function loadVersionMetadata() {
   }
 }
 
-/**
- * Write version history page to document
- * This inserts/updates the version history on page 1
- */
 function writeVersionHistoryPage(versionData) {
   var logger = new AppsScriptLogger();
   logger.info('VersionManager', 'Writing version history page', {
@@ -548,17 +513,14 @@ function writeVersionHistoryPage(versionData) {
   });
   
   try {
-    // Save metadata first
     var saveResult = saveVersionMetadata(versionData);
     if (!saveResult.success) {
       return saveResult;
     }
     
-    // Get document
     var doc = DocumentApp.getActiveDocument();
     var body = doc.getBody();
     
-    // Check if version history page exists
     var historyExists = false;
     var historyTitleIndex = -1;
     
@@ -576,10 +538,8 @@ function writeVersionHistoryPage(versionData) {
     }
     
     if (historyExists) {
-      // Insert new entry after title
       insertVersionEntry(body, historyTitleIndex + 2, versionData);
     } else {
-      // Create new version history page
       createVersionHistoryPage(body, versionData);
     }
     
@@ -598,80 +558,55 @@ function writeVersionHistoryPage(versionData) {
   }
 }
 
-/**
- * Create version history page at document start
- */
 function createVersionHistoryPage(body, versionData) {
-  // Insert title
   var title = body.insertParagraph(0, 'MIGOP Document Version History');
   title.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   title.setFontSize(18);
   title.setBold(true);
   title.setForegroundColor('#C8102E');
   
-  // Blank line
   body.insertParagraph(1, '');
-  
-  // First entry
   insertVersionEntry(body, 2, versionData);
-  
-  // Page break
   body.insertPageBreak(3);
 }
 
-/**
- * Insert version entry
- */
 function insertVersionEntry(body, position, versionData) {
-  // Parse version for date formatting
   var parts = versionData.versionNumber.split(':');
   var dateStr = formatVersionDate(parts);
   
-  // Create table (bordered box effect)
   var table = body.insertTable(position);
   var row = table.appendTableRow();
   var cell = row.appendTableCell();
   
-  // Style cell
   cell.setBackgroundColor('#F5F5F5');
   cell.setPaddingTop(10);
   cell.setPaddingBottom(10);
   cell.setPaddingLeft(10);
   cell.setPaddingRight(10);
   
-  // Version number
   var versionPara = cell.appendParagraph('Version: ' + versionData.versionNumber);
   versionPara.setFontSize(12);
   versionPara.setBold(true);
   
-  // Committee
   var committeePara = cell.appendParagraph('Approved By: ' + versionData.committee);
   committeePara.setFontSize(11);
   
-  // Date
   var datePara = cell.appendParagraph('Date: ' + dateStr);
   datePara.setFontSize(10);
   datePara.setItalic(true);
   
-  // Blank line
   cell.appendParagraph('');
   
-  // Comments label
   var commentsLabel = cell.appendParagraph('Comments:');
   commentsLabel.setFontSize(10);
   commentsLabel.setBold(true);
   
-  // Comments
   var commentsPara = cell.appendParagraph(versionData.comments);
   commentsPara.setFontSize(10);
   
-  // Blank line after entry
   body.insertParagraph(position + 1, '');
 }
 
-/**
- * Format version date for display
- */
 function formatVersionDate(parts) {
   if (parts.length < 8) return 'Invalid date';
   
@@ -691,21 +626,10 @@ function formatVersionDate(parts) {
   return month + ' ' + day + ', ' + year + ' at ' + hour12 + ':' + minute + ' ' + ampm;
 }
 
-/**
- * Bridge logging from browser to Apps Script
- */
 function logFromBrowser(message) {
   console.log('[BROWSER] ' + message);
 }
 
-// ============================================================================
-// V1 LEGACY SUPPORT (Optional)
-// ============================================================================
-
-/**
- * Show V1 legacy editor
- */
 function showV1Sidebar() {
-  // TODO: Implement V1 fallback if needed
   DocumentApp.getUi().alert('V1 Legacy editor not yet implemented in V3');
 }
