@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub URL Mapper</title>
+    <title>GitHub URL Mapper (with Cache-Busting)</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -35,6 +35,9 @@
             font-weight: 600;
             color: #444;
         }
+        input[type="text"], input[type="checkbox"] {
+            margin-right: 8px;
+        }
         input[type="text"] {
             width: 100%;
             padding: 12px;
@@ -46,6 +49,11 @@
         input[type="text"]:focus {
             outline: none;
             border-color: #0366d6;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
         }
         button {
             background: #0366d6;
@@ -118,12 +126,19 @@
             margin: 15px 0;
             font-size: 13px;
         }
+        .cache-info {
+            background: #fff3cd;
+            padding: 10px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📂 GitHub URL Mapper</h1>
-        <p class="subtitle">Generate a list of raw GitHub URLs from any repository</p>
+        <p class="subtitle">Generate raw GitHub URLs with optional cache-busting timestamps</p>
 
         <div class="example">
             <strong>Example URL:</strong><br>
@@ -137,6 +152,15 @@
                 id="repoUrl" 
                 placeholder="https://github.com/username/repo/tree/branch/path"
                 value="">
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="cacheBuster" checked>
+            <label for="cacheBuster" style="margin: 0;">Add cache-busting timestamp (?v=...)</label>
+        </div>
+
+        <div class="cache-info">
+            <strong>💡 Cache-Busting:</strong> Appends <code>?v=timestamp</code> to URLs to force GitHub's CDN to serve fresh content instead of cached versions. Useful when files have been recently updated.
         </div>
 
         <button onclick="generateUrls()" id="generateBtn">Generate URL Map</button>
@@ -177,6 +201,7 @@
 
         async function generateUrls() {
             const input = document.getElementById('repoUrl').value.trim();
+            const addCacheBuster = document.getElementById('cacheBuster').checked;
             
             if (!input) {
                 showStatus('Please enter a GitHub URL', 'error');
@@ -209,16 +234,26 @@
                 }
 
                 // Generate raw URLs
-                const urls = files.map(file => 
+                let urls = files.map(file => 
                     `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file.path}`
                 );
+
+                // Add cache-busting if enabled
+                if (addCacheBuster) {
+                    const timestamp = Date.now();
+                    urls = urls.map(url => `${url}?v=${timestamp}`);
+                }
 
                 // Build output
                 urlMap = urls.join('\n');
                 
                 document.getElementById('urlList').textContent = urlMap;
-                document.getElementById('stats').textContent = 
-                    `Found ${files.length} file(s) in ${owner}/${repo}${path ? '/' + path : ''}`;
+                
+                let statsText = `Found ${files.length} file(s) in ${owner}/${repo}${path ? '/' + path : ''}`;
+                if (addCacheBuster) {
+                    statsText += ` (with cache-busting timestamp: ${Date.now()})`;
+                }
+                document.getElementById('stats').textContent = statsText;
                 
                 document.getElementById('output').style.display = 'block';
                 document.getElementById('copyBtn').style.display = 'inline-block';
