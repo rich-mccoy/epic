@@ -11,6 +11,9 @@
  * - Debug log window
  * 
  * Depends on: workflow-controller, version-manager
+ * 
+ * SYNTAX FIX: Removed trailing commas in renderProgressTracker that caused
+ * appendChild syntax errors when injecting into DOM.
  * ============================================================================
  */
 
@@ -226,13 +229,14 @@
   
   /**
    * Render progress tracker
+   * FIX: Removed trailing commas that caused syntax errors
    */
   WorkflowUI.prototype.renderProgressTracker = function() {
     return [
       '<div style="padding: 20px; background: white; border-top: 1px solid #dee2e6;">',
       '  <div style="font-weight: 600; color: #495057; margin-bottom: 15px;">Progress:</div>',
       '  <div id="progress-tracker">',
-      '    ' + this.renderProgressStep(0, 'Ready', 'Click Start to begin'),',
+      '    ' + this.renderProgressStep(0, 'Ready', 'Click Start to begin'),
       '    ' + this.renderProgressStep(1, 'Export & Analyze', 'Waiting...'),
       '    ' + this.renderProgressStep(2, 'Version (Before)', 'Waiting...'),
       '    ' + this.renderProgressStep(3, 'Transform & Replace', 'Waiting...'),
@@ -648,84 +652,4 @@
     } else if (state === 'error') {
       stepEl.style.borderLeftColor = '#dc3545';
       iconEl.style.background = '#dc3545';
-      iconEl.textContent = '✕';
-      titleEl.style.color = '#dc3545';
-    } else {
-      stepEl.style.borderLeftColor = '#dee2e6';
-      iconEl.style.background = '#dee2e6';
-      iconEl.textContent = '○';
-      titleEl.style.color = '#495057';
-    }
-  };
-  
-  // ============================================================================
-  // LOG UTILITIES
-  // ============================================================================
-  
-  /**
-   * Copy log to clipboard
-   */
-  WorkflowUI.prototype.copyLog = function() {
-    var self = this;
-    var logText = Log.getLogsAsText();
-    
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(logText).then(function() {
-        self.logger.info('WorkflowUI', 'Log copied to clipboard');
-        self.showCopyFeedback();
-      }).catch(function(error) {
-        self.logger.error('WorkflowUI', 'Failed to copy log', error);
-      });
-    }
-  };
-  
-  /**
-   * Show copy feedback
-   */
-  WorkflowUI.prototype.showCopyFeedback = function() {
-    var btn = this.elements.copyLogBtn;
-    if (!btn) return;
-    
-    var originalText = btn.textContent;
-    btn.textContent = '✓ Copied!';
-    btn.style.background = '#28a745';
-    
-    setTimeout(function() {
-      btn.textContent = originalText;
-      btn.style.background = '#28a745';
-    }, 2000);
-  };
-  
-  /**
-   * Clear log
-   */
-  WorkflowUI.prototype.clearLog = function() {
-    Log.clear();
-    this.logger.info('WorkflowUI', 'Log cleared by user');
-  };
-  
-  // ============================================================================
-  // EXPORT TO MIGOP NAMESPACE
-  // ============================================================================
-  
-  window.MIGOP = window.MIGOP || {};
-  window.MIGOP.WorkflowUI = WorkflowUI;
-  
-  // Create singleton instance
-  window.MIGOP.ui = new WorkflowUI();
-  
-  // Expose utility functions globally for easy access
-  window.MIGOP.UI = {
-    copyLog: function() {
-      window.MIGOP.ui.copyLog();
-    },
-    clearLog: function() {
-      window.MIGOP.ui.clearLog();
-    },
-    updateUI: function() {
-      window.MIGOP.ui.updateUI();
-    }
-  };
-  
-  console.log('[MIGOP V3] workflow-ui.js loaded successfully');
-})();
+      iconEl.textContent = '
