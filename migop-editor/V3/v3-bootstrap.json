@@ -1,0 +1,65 @@
+{
+  "version": "3.0",
+  "title": "MIGOP Editor V3",
+  "baseUrl": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/",
+  "modules": [
+    {
+      "name": "migop-base",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V1/migop-base.html",
+      "priority": 10,
+      "description": "Foundation classes and utilities"
+    },
+    {
+      "name": "migop-log",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V1/migop-log.html",
+      "priority": 20,
+      "description": "Logging system"
+    },
+    {
+      "name": "migop-detection",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V1/migop-detection",
+      "priority": 30,
+      "description": "DOCX suggestion detection (CORE)"
+    },
+    {
+      "name": "migop-xml",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V1/migop-xml",
+      "priority": 40,
+      "description": "XML transformation engine (CORE)"
+    },
+    {
+      "name": "migop-docx",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V1/migop-docx",
+      "priority": 50,
+      "description": "DOCX processing with rebuild (CORE)"
+    },
+    {
+      "name": "version-manager",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V3/version-manager.js",
+      "priority": 60,
+      "description": "V3 version numbering and history"
+    },
+    {
+      "name": "workflow-controller",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V3/workflow-controller.js",
+      "priority": 70,
+      "description": "V3 three-phase state machine"
+    },
+    {
+      "name": "workflow-ui",
+      "url": "https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V3/workflow-ui.js",
+      "priority": 80,
+      "description": "V3 MIGOP-branded interface"
+    }
+  ],
+  "dependencies": {
+    "jszip": "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+  },
+  "metadata": {
+    "created": "2025-10-02",
+    "phase": "Phase 3",
+    "status": "Development",
+    "architecture": "V1 core + V2 bootstrap + V3 workflow",
+    "knowledgeGraph": "https://sites.google.com/view/migopeditor/home/start?v=24"
+  }
+}
