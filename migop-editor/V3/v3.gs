@@ -8,6 +8,9 @@
  * 
  * Philosophy: Keep .gs as lightweight as possible for portability.
  * JavaScript is modular and portable; Apps Script is not.
+ * 
+ * CSP FIX: Uses inline fetch + eval pattern (proven in V2) instead of
+ * external <script src> which violates Apps Script CSP restrictions.
  * ============================================================================
  */
 
@@ -25,8 +28,15 @@ function onOpen() {
 /**
  * Show V3 sidebar - minimal HTML that loads bootstrap.js
  * Bootstrap.js does ALL the heavy lifting (fetch config, load modules, render UI)
+ * 
+ * CSP WORKAROUND: Cannot use <script src="..."> due to Apps Script CSP.
+ * Instead, use inline <script> that fetches bootstrap.js as text and evals it.
+ * This is the exact pattern that V2 (bootstrap.gs) proved works.
  */
 function showV3Sidebar() {
+  var cacheBuster = '?v=' + new Date().getTime();
+  var bootstrapUrl = 'https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V3/bootstrap.js' + cacheBuster;
+  
   var html = [
     '<!DOCTYPE html>',
     '<html>',
@@ -38,6 +48,7 @@ function showV3Sidebar() {
     '    body { font-family: "Google Sans", Roboto, Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }',
     '    #app { min-height: 100vh; }',
     '    .loading { padding: 20px; text-align: center; color: #666; }',
+    '    .error { padding: 20px; background: #ffebee; color: #d32f2f; border-left: 4px solid #d32f2f; margin: 10px; }',
     '  </style>',
     '</head>',
     '<body>',
@@ -45,11 +56,50 @@ function showV3Sidebar() {
     '    <div class="loading">Loading MIGOP Editor V3...</div>',
     '  </div>',
     '  ',
-    '  <!-- JSZip dependency -->',
+    '  <!-- JSZip dependency (external CDN allowed) -->',
     '  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>',
     '  ',
-    '  <!-- Bootstrap.js handles everything: fetch config, load modules, render UI -->',
-    '  <script src="https://raw.githubusercontent.com/rich-mccoy/epic/main/migop-editor/V3/bootstrap.js"></script>',
+    '  <!-- Bootstrap.js loaded via inline fetch + eval (CSP workaround) -->',
+    '  <script>',
+    '    (function() {',
+    '      console.log("[v3.gs] Starting bootstrap load...");',
+    '      console.log("[v3.gs] Bootstrap URL: ' + bootstrapUrl + '");',
+    '      ',
+    '      fetch("' + bootstrapUrl + '")',
+    '        .then(function(response) {',
+    '          console.log("[v3.gs] Bootstrap fetch response:", response.status);',
+    '          if (!response.ok) {',
+    '            throw new Error("Failed to fetch bootstrap.js: HTTP " + response.status);',
+    '          }',
+    '          return response.text();',
+    '        })',
+    '        .then(function(code) {',
+    '          console.log("[v3.gs] Bootstrap.js fetched (" + code.length + " bytes), executing...");',
+    '          eval(code);',
+    '          console.log("[v3.gs] Bootstrap.js executed successfully");',
+    '        })',
+    '        .catch(function(error) {',
+    '          console.error("[v3.gs] Bootstrap load failed:", error);',
+    '          var appDiv = document.getElementById("app");',
+    '          if (appDiv) {',
+    '            appDiv.innerHTML = [',
+    '              "<div class=\\"error\\">",',
+    '              "  <h3>⚠️ Failed to Load Bootstrap</h3>",',
+    '              "  <p><strong>Error:</strong> " + error.message + "</p>",',
+    '              "  <p><strong>URL:</strong> <code>' + bootstrapUrl + '</code></p>",',
+    '              "  <hr>",',
+    '              "  <p><strong>Troubleshooting:</strong></p>",',
+    '              "  <ol>",',
+    '              "    <li>Check browser console for detailed errors (F12)</li>",',
+    '              "    <li>Verify bootstrap.js is accessible at the URL above</li>",',
+    '              "    <li>Check network tab for failed requests</li>",',
+    '              "  </ol>",',
+    '              "</div>"',
+    '            ].join("");',
+    '          }',
+    '        });',
+    '    })();',
+    '  </script>',
     '</body>',
     '</html>'
   ].join('\n');
