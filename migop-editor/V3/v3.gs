@@ -322,11 +322,9 @@ function createVersionHistoryPage(body, versionData) {
 
 /**
  * Insert version entry into history page
+ * NOTE: versionData.formattedDate is provided by client (version-manager.js)
  */
 function insertVersionEntry(body, position, versionData) {
-  var parts = versionData.versionNumber.split(':');
-  var dateStr = formatVersionDate(parts);
-  
   var table = body.insertTable(position);
   var row = table.appendTableRow();
   var cell = row.appendTableCell();
@@ -344,7 +342,7 @@ function insertVersionEntry(body, position, versionData) {
   var committeePara = cell.appendParagraph('Approved By: ' + versionData.committee);
   committeePara.setFontSize(11);
   
-  var datePara = cell.appendParagraph('Date: ' + dateStr);
+  var datePara = cell.appendParagraph('Date: ' + versionData.formattedDate);
   datePara.setFontSize(10);
   datePara.setItalic(true);
   
@@ -356,26 +354,4 @@ function insertVersionEntry(body, position, versionData) {
   
   var commentsPara = cell.appendParagraph(versionData.comments);
   commentsPara.setFontSize(10);
-}
-
-/**
- * Format version date from version number parts
- */
-function formatVersionDate(parts) {
-  if (parts.length < 8) return 'Invalid date';
-  
-  var monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                   'July', 'August', 'September', 'October', 'November', 'December'];
-  
-  var year = 2000 + parseInt(parts[2]);
-  var month = monthNames[parseInt(parts[3]) - 1];
-  var day = parseInt(parts[4]);
-  var hour = parseInt(parts[5]);
-  var minute = parts[6];
-  
-  var hour12 = hour % 12;
-  if (hour12 === 0) hour12 = 12;
-  var ampm = hour >= 12 ? 'PM' : 'AM';
-  
-  return month + ' ' + day + ', ' + year + ' at ' + hour12 + ':' + minute + ' ' + ampm;
 }
