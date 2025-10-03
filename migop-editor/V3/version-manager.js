@@ -117,7 +117,7 @@
   };
   
   /**
-   * Format version date for display
+   * Format version date for display (from parsed object)
    * @param {Object} parsed - Parsed version from parseVersionNumber()
    * @returns {string} Human-readable date: "September 30, 2025 at 9:15 AM"
    */
@@ -139,6 +139,27 @@
                    ' at ' + hour12 + ':' + String(parsed.minute).padStart(2, '0') + ' ' + ampm;
     
     return formatted;
+  };
+  
+  /**
+   * Format version string to human-readable date (parse + format in one call)
+   * @param {string} versionString - Version number string (e.g., "1:B:25:10:02:14:30:45")
+   * @returns {string} Human-readable date: "October 2, 2025 at 2:30 PM"
+   * 
+   * This is the primary method to use for formatting dates.
+   * It combines parseVersionNumber() + formatVersionDate() for convenience.
+   */
+  VersionManager.prototype.formatVersionString = function(versionString) {
+    var parsed = this.parseVersionNumber(versionString);
+    
+    if (!parsed) {
+      this.logger.error('VersionManager', 'Cannot format invalid version string', {
+        versionString: versionString
+      });
+      return 'Invalid date';
+    }
+    
+    return this.formatVersionDate(parsed);
   };
   
   // ============================================================================
@@ -182,7 +203,20 @@
   
   /**
    * Write version history page (calls server-side function)
-   * @param {Object} versionData - {versionNumber, committee, timestamp, comments}
+   * 
+   * IMPORTANT: This method now expects versionData to include formattedDate.
+   * The client must format the date before calling this method:
+   * 
+   * var formattedDate = versionManager.formatVersionString(versionNumber);
+   * var versionData = {
+   *   versionNumber: versionNumber,
+   *   committee: committee,
+   *   timestamp: timestamp,
+   *   comments: comments,
+   *   formattedDate: formattedDate  // <-- Client provides this
+   * };
+   * 
+   * @param {Object} versionData - {versionNumber, committee, timestamp, comments, formattedDate}
    * @param {function} callback - Callback with result
    */
   VersionManager.prototype.writeVersionHistory = function(versionData, callback) {
@@ -191,6 +225,12 @@
       versionNumber: versionData.versionNumber,
       committee: versionData.committee
     });
+    
+    // Auto-format date if not provided (convenience)
+    if (!versionData.formattedDate) {
+      this.logger.warn('VersionManager', 'formattedDate not provided, auto-formatting');
+      versionData.formattedDate = this.formatVersionString(versionData.versionNumber);
+    }
     
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       self.logger.error('VersionManager', 'Google Apps Script bridge not available');
