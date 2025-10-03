@@ -287,6 +287,72 @@
     self.logger.info('WorkflowController', 'Exporting document as DOCX');
     
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      callback({success: false, error: 'Apps Script bridge not available'});
+      return;
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        self.logger.info('WorkflowController', 'Document exported successfully');
+        callback(result);
+      })
+      .withFailureHandler(function(error) {
+        self.logger.error('WorkflowController', 'Document export failed', error);
+        callback({success: false, error: error.message});
+      })
+      .exportDocumentAsDocx();
+  };
+  
+  /**
+   * Process DOCX and extract document.xml
+   */
+  WorkflowController.prototype.processDocx = function(exportResult, callback) {
+    var self = this;
+    
+    self.logger.info('WorkflowController', 'Processing DOCX');
+    
+    self.docxProcessor.process(exportResult, function(processResult) {
+      callback(processResult);
+    });
+  };
+  
+  /**
+   * Analyze suggestions in document XML
+   */
+  WorkflowController.prototype.analyzeSuggestions = function(documentXml, callback) {
+    var self = this;
+    
+    self.logger.info('WorkflowController', 'Analyzing suggestions');
+    
+    var suggestions = self.suggestionDetector.extractSuggestions(documentXml);
+    
+    self.logger.info('WorkflowController', 'Suggestions analyzed', {
+      totalSuggestions: suggestions.length
+    });
+    
+    callback(suggestions);
+  };
+  
+  /**
+   * Generate "Before" version number
+   */
+  WorkflowController.prototype.generateBeforeVersion = function(callback) {
+    var self = this;
+    
+    self.logger.info('WorkflowController', 'Generating Before version number');
+    
+    self.versionManager.getVersionCounter(true, function(counterResult) {
+      if (!counterResult.success) {
+        callback(counterResult);
+        return;
+      }
+      
+      var versionNumber = self.versionManager.generateVersionNumber(
+        counterResult.counter,
+        'B',
+        new Date()
+      );
+      
       callback({
         success: true,
         versionNumber: versionNumber,
@@ -600,70 +666,4 @@
   window.MIGOP.workflowController = new WorkflowController(Log.getLogger());
   
   console.log('[MIGOP V3] workflow-controller.js loaded successfully');
-})();success: false, error: 'Apps Script bridge not available'});
-      return;
-    }
-    
-    google.script.run
-      .withSuccessHandler(function(result) {
-        self.logger.info('WorkflowController', 'Document exported successfully');
-        callback(result);
-      })
-      .withFailureHandler(function(error) {
-        self.logger.error('WorkflowController', 'Document export failed', error);
-        callback({success: false, error: error.message});
-      })
-      .exportDocumentAsDocx();
-  };
-  
-  /**
-   * Process DOCX and extract document.xml
-   */
-  WorkflowController.prototype.processDocx = function(exportResult, callback) {
-    var self = this;
-    
-    self.logger.info('WorkflowController', 'Processing DOCX');
-    
-    self.docxProcessor.process(exportResult, function(processResult) {
-      callback(processResult);
-    });
-  };
-  
-  /**
-   * Analyze suggestions in document XML
-   */
-  WorkflowController.prototype.analyzeSuggestions = function(documentXml, callback) {
-    var self = this;
-    
-    self.logger.info('WorkflowController', 'Analyzing suggestions');
-    
-    var suggestions = self.suggestionDetector.extractSuggestions(documentXml);
-    
-    self.logger.info('WorkflowController', 'Suggestions analyzed', {
-      totalSuggestions: suggestions.length
-    });
-    
-    callback(suggestions);
-  };
-  
-  /**
-   * Generate "Before" version number
-   */
-  WorkflowController.prototype.generateBeforeVersion = function(callback) {
-    var self = this;
-    
-    self.logger.info('WorkflowController', 'Generating Before version number');
-    
-    self.versionManager.getVersionCounter(true, function(counterResult) {
-      if (!counterResult.success) {
-        callback(counterResult);
-        return;
-      }
-      
-      var versionNumber = self.versionManager.generateVersionNumber(
-        counterResult.counter,
-        'B',
-        new Date()
-      );
-      
-      callback({
+})();
