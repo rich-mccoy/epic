@@ -1,18 +1,18 @@
 /**
  * ============================================================================
- * MIGOP EDITOR V3 - WORKFLOW UI MODULE (FIXED)
+ * MIGOP EDITOR V3 - WORKFLOW UI MODULE (FIXED - Event Data Issue)
  * ============================================================================
  * 
- * SYNTAX FIX: The renderProgressTracker function had trailing commas after
- * renderProgressStep calls that were creating malformed HTML when the array
- * was joined. Changed to use proper array structure without commas in strings.
+ * FIX: The UI was not showing the version section during pauses because
+ * updateUI() was calling controller.getWorkflowData() which returns a fresh
+ * clone, instead of using the workflowData from the state change event.
+ * Changed to use event.detail.workflowData directly.
  * ============================================================================
  */
 
 (function() {
   'use strict';
   
-  // Dependency check
   if (!window.MIGOP || !window.MIGOP.WorkflowController || !window.MIGOP.workflowController) {
     throw new Error('workflow-ui.js requires workflow-controller');
   }
@@ -21,36 +21,28 @@
   var WorkflowStates = window.MIGOP.WorkflowStates;
   var Log = window.MIGOP.Log;
   
-  // ============================================================================
-  // UI MANAGER CLASS
-  // ============================================================================
-  
   function WorkflowUI() {
     this.logger = Log.getLogger();
     this.logger.info('WorkflowUI', 'UI module initializing');
     
     this.elements = {};
     this.committeeOptions = [
-      'PDBOR Subcommittee',
-      'Policy Committee',
+      'PDBOR Subcommittee', 'Policy Committee',
       'District 1', 'District 2', 'District 3', 'District 4',
       'District 5', 'District 6', 'District 7', 'District 8',
       'District 9', 'District 10', 'District 11', 'District 12',
-      'District 13',
-      'State Committee'
+      'District 13', 'State Committee'
     ];
     
-    // Initialize when DOM is ready
+    // Store latest workflow data from events
+    this.latestWorkflowData = null;
+    
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', this.initialize.bind(this));
     } else {
       this.initialize();
     }
   }
-  
-  // ============================================================================
-  // INITIALIZATION
-  // ============================================================================
   
   WorkflowUI.prototype.initialize = function() {
     var self = this;
@@ -115,9 +107,6 @@
     ].join('\n');
   };
   
-  /**
-   * FIXED: Removed trailing commas and restructured to avoid malformed HTML
-   */
   WorkflowUI.prototype.renderProgressTracker = function() {
     var steps = [];
     steps.push(this.renderProgressStep(0, 'Ready', 'Click Start to begin'));
@@ -160,10 +149,6 @@
       '</div>'
     ].join('\n');
   };
-  
-  // ============================================================================
-  // REST OF THE CODE (unchanged)
-  // ============================================================================
   
   WorkflowUI.prototype.cacheElements = function() {
     this.elements = {
@@ -209,7 +194,8 @@
     if (self.elements.clearLogBtn) {
       self.elements.clearLogBtn.addEventListener('click', function() { self.clearLog(); });
     }
-    window.addEventListener('workflowStateChange', function(event) { self.handleStateChange(event.detail); });
+    // FIX: Store workflowData from event for use in updateUI
+    window.addEventListener('workflowStateChange', function(event) { self.handleStateChange(event); });
     window.addEventListener('workflowError', function(event) { self.handleError(event.detail); });
   };
   
@@ -243,9 +229,15 @@
     this.elements.officialDetails.style.display = isChecked ? 'block' : 'none';
   };
   
-  WorkflowUI.prototype.handleStateChange = function(detail) {
+  // FIX: Store workflowData from event
+  WorkflowUI.prototype.handleStateChange = function(event) {
     var self = this;
+    var detail = event.detail;
     self.logger.info('WorkflowUI', 'State changed', {from: detail.oldState, to: detail.newState});
+    
+    // Store the workflowData from the event
+    self.latestWorkflowData = detail.workflowData;
+    
     self.updateUI();
   };
   
@@ -259,10 +251,14 @@
     self.updateProgressStep(5, 'Error', detail.message, 'error');
   };
   
+  // FIX: Use stored workflowData instead of calling getWorkflowData()
   WorkflowUI.prototype.updateUI = function() {
     var self = this;
     var state = controller.getState();
-    var workflowData = controller.getWorkflowData();
+    
+    // Use stored workflowData from event, or get fresh if not available
+    var workflowData = self.latestWorkflowData || controller.getWorkflowData();
+    
     self.logger.debug('WorkflowUI', 'Updating UI', {state: state});
     self.updateSmartButton(state);
     self.updateVersionSection(state, workflowData);
@@ -298,14 +294,23 @@
   WorkflowUI.prototype.updateVersionSection = function(state, workflowData) {
     var section = this.elements.versionSection;
     if (!section) return;
+    
+    // Debug logging to see what we have
+    this.logger.debug('WorkflowUI', 'updateVersionSection called', {
+      state: state,
+      hasWorkflowData: !!workflowData,
+      hasPhase1: !!(workflowData && workflowData.phase1),
+      versionNumber: workflowData && workflowData.phase1 ? workflowData.phase1.versionNumber : 'MISSING'
+    });
+    
     if (state === WorkflowStates.VERSION_1_PAUSE) {
       section.style.display = 'block';
-      this.elements.versionNumber.textContent = workflowData.phase1.versionNumber || '';
+      this.elements.versionNumber.textContent = (workflowData && workflowData.phase1 && workflowData.phase1.versionNumber) || 'ERROR: Version not found';
       this.elements.versionInstructions.innerHTML = '<strong>Next Step:</strong><br>1. Go to <strong>File → Version History → Name current version</strong><br>2. Paste the version number above<br>3. Return here and click <strong>Resume</strong>';
       this.elements.officialSection.style.display = 'none';
     } else if (state === WorkflowStates.VERSION_2_PAUSE) {
       section.style.display = 'block';
-      this.elements.versionNumber.textContent = workflowData.phase2.versionNumber || '';
+      this.elements.versionNumber.textContent = (workflowData && workflowData.phase2 && workflowData.phase2.versionNumber) || 'ERROR: Version not found';
       this.elements.versionInstructions.innerHTML = '<strong>Next Step:</strong><br>1. Go to <strong>File → Version History → Name current version</strong><br>2. Paste the version number above<br>3. Optionally mark as Official (below)<br>4. Return here and click <strong>Resume</strong>';
       this.elements.officialSection.style.display = 'block';
     } else {
@@ -323,7 +328,8 @@
       self.updateProgressStep(1, 'Export & Analyze', 'Processing...', 'active');
     } else if (state === WorkflowStates.VERSION_1_PAUSE) {
       self.updateProgressStep(0, 'Ready', '✓ Started', 'complete');
-      self.updateProgressStep(1, 'Export & Analyze', '✓ Complete (' + workflowData.phase1.suggestions.length + ' suggestions)', 'complete');
+      var suggestionCount = (workflowData && workflowData.phase1 && workflowData.phase1.suggestions) ? workflowData.phase1.suggestions.length : 0;
+      self.updateProgressStep(1, 'Export & Analyze', '✓ Complete (' + suggestionCount + ' suggestions)', 'complete');
       self.updateProgressStep(2, 'Version (Before)', 'Please create version in Google Docs', 'active');
     } else if (state === WorkflowStates.PHASE_2_TRANSFORMING || state === WorkflowStates.PHASE_2_REBUILDING || state === WorkflowStates.PHASE_2_REPLACING) {
       self.updateProgressStep(0, 'Ready', '✓ Started', 'complete');
@@ -414,7 +420,6 @@
     this.logger.info('WorkflowUI', 'Log cleared by user');
   };
   
-  // Export
   window.MIGOP = window.MIGOP || {};
   window.MIGOP.WorkflowUI = WorkflowUI;
   window.MIGOP.ui = new WorkflowUI();
