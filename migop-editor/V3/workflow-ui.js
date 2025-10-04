@@ -1,12 +1,10 @@
 /**
  * ============================================================================
- * MIGOP EDITOR V3 - WORKFLOW UI MODULE (FIXED - Event Data Issue)
+ * MIGOP EDITOR V3 - WORKFLOW UI MODULE (ENHANCED STATUS BLASTING)
  * ============================================================================
  * 
- * FIX: The UI was not showing the version section during pauses because
- * updateUI() was calling controller.getWorkflowData() which returns a fresh
- * clone, instead of using the workflowData from the state change event.
- * Changed to use event.detail.workflowData directly.
+ * Enhanced with real-time status display that updates rapidly during processing
+ * to provide continuous feedback on large document operations.
  * ============================================================================
  */
 
@@ -37,6 +35,11 @@
     // Store latest workflow data from events
     this.latestWorkflowData = null;
     
+    // Status blasting variables
+    this.lastStatus = '';
+    this.statusUpdateCount = 0;
+    this.statusStartTime = null;
+    
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', this.initialize.bind(this));
     } else {
@@ -59,6 +62,7 @@
     html.push('<div id="migop-container" style="font-family: \'Google Sans\', Roboto, Arial, sans-serif;">');
     html.push(this.renderBanner());
     html.push(this.renderSmartButton());
+    html.push(this.renderStatusBlaster()); // NEW: Real-time status display
     html.push(this.renderVersionSection());
     html.push(this.renderProgressTracker());
     html.push(this.renderDebugLog());
@@ -83,6 +87,24 @@
     return [
       '<div style="padding: 20px; background: white;">',
       '  <button id="smart-button" style="width: 100%; padding: 15px; font-size: 16px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; background: linear-gradient(135deg, #C8102E 0%, #9A0826 100%); color: white; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(200, 16, 46, 0.3);">Start Workflow</button>',
+      '</div>'
+    ].join('\n');
+  };
+  
+  // NEW: Real-time status blasting display
+  WorkflowUI.prototype.renderStatusBlaster = function() {
+    return [
+      '<div id="status-blaster" style="display: none; padding: 15px 20px; background: #f8f9fa; border-top: 2px solid #C8102E;">',
+      '  <div style="display: flex; align-items: center; justify-content: space-between;">',
+      '    <div style="flex-grow: 1;">',
+      '      <div id="status-text" style="font-size: 14px; color: #495057; font-weight: 500; margin-bottom: 3px;">Ready</div>',
+      '      <div id="status-details" style="font-size: 11px; color: #6c757d;">Click Start to begin workflow</div>',
+      '    </div>',
+      '    <div id="status-spinner" style="display: none; width: 20px; height: 20px; border: 2px solid #dee2e6; border-top: 2px solid #C8102E; border-radius: 50%; animation: spin 1s linear infinite;"></div>',
+      '  </div>',
+      '  <div id="status-progress" style="width: 100%; height: 3px; background: #dee2e6; border-radius: 2px; margin-top: 10px; overflow: hidden;">',
+      '    <div id="status-progress-bar" style="height: 100%; background: linear-gradient(90deg, #C8102E 0%, #9A0826 100%); width: 0%; transition: width 0.3s ease;"></div>',
+      '  </div>',
       '</div>'
     ].join('\n');
   };
@@ -153,6 +175,12 @@
   WorkflowUI.prototype.cacheElements = function() {
     this.elements = {
       smartButton: document.getElementById('smart-button'),
+      statusBlaster: document.getElementById('status-blaster'),
+      statusText: document.getElementById('status-text'),
+      statusDetails: document.getElementById('status-details'),
+      statusSpinner: document.getElementById('status-spinner'),
+      statusProgress: document.getElementById('status-progress'),
+      statusProgressBar: document.getElementById('status-progress-bar'),
       versionSection: document.getElementById('version-section'),
       versionNumber: document.getElementById('version-number'),
       versionInstructions: document.getElementById('version-instructions'),
@@ -166,7 +194,31 @@
       copyLogBtn: document.getElementById('copy-log-btn'),
       clearLogBtn: document.getElementById('clear-log-btn')
     };
+    
     this.populateCommitteeDropdown();
+    this.addStatusBlasterStyles();
+  };
+  
+  WorkflowUI.prototype.addStatusBlasterStyles = function() {
+    // Add CSS animation for spinner
+    var style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      #status-text {
+        animation: none;
+      }
+      .status-updating #status-text {
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+    `;
+    document.head.appendChild(style);
   };
   
   WorkflowUI.prototype.populateCommitteeDropdown = function() {
@@ -194,21 +246,147 @@
     if (self.elements.clearLogBtn) {
       self.elements.clearLogBtn.addEventListener('click', function() { self.clearLog(); });
     }
-    // FIX: Store workflowData from event for use in updateUI
+    
+    // Enhanced event listeners for status blasting
     window.addEventListener('workflowStateChange', function(event) { self.handleStateChange(event); });
+    window.addEventListener('workflowStatusUpdate', function(event) { self.handleStatusUpdate(event); }); // NEW
     window.addEventListener('workflowError', function(event) { self.handleError(event.detail); });
+  };
+  
+  // NEW: Handle real-time status updates
+  WorkflowUI.prototype.handleStatusUpdate = function(event) {
+    var self = this;
+    var detail = event.detail;
+    
+    self.statusUpdateCount++;
+    self.lastStatus = detail.status;
+    
+    if (!self.statusStartTime && detail.status !== 'Ready') {
+      self.statusStartTime = Date.now();
+    }
+    
+    self.updateStatusBlaster(detail.status, detail.state);
+    
+    // Update progress bar based on state
+    self.updateProgressBar(detail.state);
+    
+    self.logger.debug('WorkflowUI', 'Status updated', {
+      status: detail.status,
+      updateCount: self.statusUpdateCount,
+      state: detail.state
+    });
+  };
+  
+  WorkflowUI.prototype.updateStatusBlaster = function(status, state) {
+    var self = this;
+    
+    if (!self.elements.statusBlaster) return;
+    
+    // Show/hide status blaster based on workflow state
+    var shouldShow = state !== WorkflowStates.IDLE && state !== WorkflowStates.COMPLETE && state !== WorkflowStates.ERROR;
+    self.elements.statusBlaster.style.display = shouldShow ? 'block' : 'none';
+    
+    if (!shouldShow) return;
+    
+    // Update status text
+    if (self.elements.statusText) {
+      self.elements.statusText.textContent = status;
+    }
+    
+    // Update details with update count and timing
+    if (self.elements.statusDetails) {
+      var details = 'Update #' + self.statusUpdateCount;
+      if (self.statusStartTime) {
+        var elapsed = Date.now() - self.statusStartTime;
+        details += ' • ' + self.formatElapsed(elapsed);
+      }
+      self.elements.statusDetails.textContent = details;
+    }
+    
+    // Show/hide spinner based on activity
+    var isActive = state !== WorkflowStates.VERSION_1_PAUSE && state !== WorkflowStates.VERSION_2_PAUSE;
+    if (self.elements.statusSpinner) {
+      self.elements.statusSpinner.style.display = isActive ? 'block' : 'none';
+    }
+    
+    // Add visual feedback animation
+    self.elements.statusBlaster.classList.add('status-updating');
+    setTimeout(function() {
+      if (self.elements.statusBlaster) {
+        self.elements.statusBlaster.classList.remove('status-updating');
+      }
+    }, 1000);
+  };
+  
+  WorkflowUI.prototype.updateProgressBar = function(state) {
+    var self = this;
+    if (!self.elements.statusProgressBar) return;
+    
+    var progress = 0;
+    
+    // Calculate progress percentage based on state
+    switch (state) {
+      case WorkflowStates.IDLE:
+        progress = 0;
+        break;
+      case WorkflowStates.PHASE_1_EXPORTING:
+        progress = 10;
+        break;
+      case WorkflowStates.PHASE_1_ANALYZING:
+        progress = 20;
+        break;
+      case WorkflowStates.VERSION_1_PAUSE:
+        progress = 30;
+        break;
+      case WorkflowStates.PHASE_2_TRANSFORMING:
+        progress = 40;
+        break;
+      case WorkflowStates.PHASE_2_REBUILDING:
+        progress = 60;
+        break;
+      case WorkflowStates.PHASE_2_REPLACING:
+        progress = 80;
+        break;
+      case WorkflowStates.VERSION_2_PAUSE:
+        progress = 90;
+        break;
+      case WorkflowStates.PHASE_3_FINALIZING:
+        progress = 95;
+        break;
+      case WorkflowStates.COMPLETE:
+        progress = 100;
+        break;
+      default:
+        progress = 0;
+    }
+    
+    self.elements.statusProgressBar.style.width = progress + '%';
+  };
+  
+  WorkflowUI.prototype.formatElapsed = function(milliseconds) {
+    if (milliseconds < 1000) return milliseconds + 'ms';
+    if (milliseconds < 60000) return (milliseconds / 1000).toFixed(1) + 's';
+    return (milliseconds / 60000).toFixed(1) + 'm';
   };
   
   WorkflowUI.prototype.handleSmartButtonClick = function() {
     var self = this;
     var state = controller.getState();
     self.logger.info('WorkflowUI', 'Smart button clicked', {state: state});
+    
     if (state === WorkflowStates.IDLE) {
+      // Reset status tracking
+      self.statusUpdateCount = 0;
+      self.statusStartTime = null;
       controller.startWorkflow();
     } else if (controller.isPaused()) {
       var userData = self.getUserData();
       controller.resumeWorkflow(userData);
     } else if (controller.isComplete()) {
+      // Reset everything for new workflow
+      self.statusUpdateCount = 0;
+      self.statusStartTime = null;
+      self.lastStatus = '';
       controller.reset();
       self.updateUI();
     }
@@ -229,7 +407,6 @@
     this.elements.officialDetails.style.display = isChecked ? 'block' : 'none';
   };
   
-  // FIX: Store workflowData from event
   WorkflowUI.prototype.handleStateChange = function(event) {
     var self = this;
     var detail = event.detail;
@@ -238,20 +415,40 @@
     // Store the workflowData from the event
     self.latestWorkflowData = detail.workflowData;
     
+    // Reset status tracking for certain state transitions
+    if (detail.newState === WorkflowStates.IDLE) {
+      self.statusUpdateCount = 0;
+      self.statusStartTime = null;
+      self.lastStatus = '';
+    }
+    
     self.updateUI();
   };
   
   WorkflowUI.prototype.handleError = function(detail) {
     var self = this;
     self.logger.error('WorkflowUI', 'Workflow error', detail);
+    
+    // Update status blaster with error
+    if (self.elements.statusText) {
+      self.elements.statusText.textContent = 'ERROR: ' + detail.message;
+    }
+    if (self.elements.statusDetails) {
+      self.elements.statusDetails.textContent = 'Workflow failed - check debug log for details';
+    }
+    if (self.elements.statusSpinner) {
+      self.elements.statusSpinner.style.display = 'none';
+    }
+    
+    // Update smart button
     if (self.elements.smartButton) {
       self.elements.smartButton.textContent = 'Error - Click to Reset';
       self.elements.smartButton.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
     }
+    
     self.updateProgressStep(5, 'Error', detail.message, 'error');
   };
   
-  // FIX: Use stored workflowData instead of calling getWorkflowData()
   WorkflowUI.prototype.updateUI = function() {
     var self = this;
     var state = controller.getState();
@@ -268,6 +465,7 @@
   WorkflowUI.prototype.updateSmartButton = function(state) {
     var button = this.elements.smartButton;
     if (!button) return;
+    
     if (state === WorkflowStates.IDLE) {
       button.textContent = 'Start Workflow';
       button.disabled = false;
@@ -295,7 +493,6 @@
     var section = this.elements.versionSection;
     if (!section) return;
     
-    // Debug logging to see what we have
     this.logger.debug('WorkflowUI', 'updateVersionSection called', {
       state: state,
       hasWorkflowData: !!workflowData,
@@ -320,12 +517,18 @@
   
   WorkflowUI.prototype.updateProgressTracker = function(state, workflowData) {
     var self = this;
-    for (var i = 0; i <= 5; i++) { self.updateProgressStep(i, null, null, 'pending'); }
+    
+    // Reset all steps
+    for (var i = 0; i <= 5; i++) { 
+      self.updateProgressStep(i, null, null, 'pending'); 
+    }
+    
     if (state === WorkflowStates.IDLE) {
       self.updateProgressStep(0, 'Ready', 'Click Start to begin', 'pending');
     } else if (state === WorkflowStates.PHASE_1_EXPORTING || state === WorkflowStates.PHASE_1_ANALYZING) {
       self.updateProgressStep(0, 'Ready', '✓ Started', 'complete');
-      self.updateProgressStep(1, 'Export & Analyze', 'Processing...', 'active');
+      var currentStatus = controller.getCurrentStatus() || 'Processing...';
+      self.updateProgressStep(1, 'Export & Analyze', currentStatus, 'active');
     } else if (state === WorkflowStates.VERSION_1_PAUSE) {
       self.updateProgressStep(0, 'Ready', '✓ Started', 'complete');
       var suggestionCount = (workflowData && workflowData.phase1 && workflowData.phase1.suggestions) ? workflowData.phase1.suggestions.length : 0;
@@ -335,7 +538,8 @@
       self.updateProgressStep(0, 'Ready', '✓ Started', 'complete');
       self.updateProgressStep(1, 'Export & Analyze', '✓ Complete', 'complete');
       self.updateProgressStep(2, 'Version (Before)', '✓ Created', 'complete');
-      self.updateProgressStep(3, 'Transform & Replace', 'Processing...', 'active');
+      var currentStatus = controller.getCurrentStatus() || 'Processing...';
+      self.updateProgressStep(3, 'Transform & Replace', currentStatus, 'active');
     } else if (state === WorkflowStates.VERSION_2_PAUSE) {
       self.updateProgressStep(0, 'Ready', '✓ Started', 'complete');
       self.updateProgressStep(1, 'Export & Analyze', '✓ Complete', 'complete');
@@ -348,7 +552,8 @@
       self.updateProgressStep(2, 'Version (Before)', '✓ Created', 'complete');
       self.updateProgressStep(3, 'Transform & Replace', '✓ Complete', 'complete');
       self.updateProgressStep(4, 'Version (After)', '✓ Created (Official)', 'complete');
-      self.updateProgressStep(5, 'Complete', 'Writing version history...', 'active');
+      var currentStatus = controller.getCurrentStatus() || 'Writing version history...';
+      self.updateProgressStep(5, 'Complete', currentStatus, 'active');
     } else if (state === WorkflowStates.COMPLETE) {
       self.updateProgressStep(0, 'Ready', '✓ Started', 'complete');
       self.updateProgressStep(1, 'Export & Analyze', '✓ Complete', 'complete');
@@ -364,9 +569,12 @@
     var iconEl = document.getElementById('step-' + index + '-icon');
     var titleEl = document.getElementById('step-' + index + '-title');
     var statusEl = document.getElementById('step-' + index + '-status');
+    
     if (!stepEl) return;
+    
     if (title) titleEl.textContent = title;
     if (status) statusEl.textContent = status;
+    
     if (state === 'complete') {
       stepEl.style.borderLeftColor = '#28a745';
       iconEl.style.background = '#28a745';
@@ -420,6 +628,10 @@
     this.logger.info('WorkflowUI', 'Log cleared by user');
   };
   
+  // ============================================================================
+  // EXPORT TO MIGOP NAMESPACE
+  // ============================================================================
+  
   window.MIGOP = window.MIGOP || {};
   window.MIGOP.WorkflowUI = WorkflowUI;
   window.MIGOP.ui = new WorkflowUI();
@@ -429,5 +641,5 @@
     updateUI: function() { window.MIGOP.ui.updateUI(); }
   };
   
-  console.log('[MIGOP V3] workflow-ui.js loaded successfully');
+  console.log('[MIGOP V3] workflow-ui.js loaded successfully with enhanced status blasting display');
 })();
