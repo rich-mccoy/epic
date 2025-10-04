@@ -1,16 +1,10 @@
 /**
  * ============================================================================
- * MIGOP EDITOR V3 - WORKFLOW CONTROLLER MODULE (FIXED - Document Replacement)
+ * MIGOP EDITOR V3 - WORKFLOW CONTROLLER MODULE (ENHANCED STATUS BLASTING)
  * ============================================================================
  * 
- * FIX: Added robust error handling and logging for document replacement to
- * prevent the race condition that was causing "success" followed by "failure".
- * 
- * Changes:
- * 1. Added detailed result structure logging in replaceDocument()
- * 2. Added timeout protection for Apps Script calls
- * 3. Added defensive success/failure checking
- * 4. Improved error messages with more context
+ * Enhanced with real-time status updates for large document processing.
+ * Provides granular feedback at every step to keep users informed.
  * ============================================================================
  */
 
@@ -73,8 +67,10 @@
     this.suggestionDetector = Detection.createDetector('standard', this.logger);
     this.xmlTransformer = Xml.createTransformer('standard', this.logger);
     
-    // FIX: Add call tracking to prevent race conditions
+    // Enhanced status tracking
     this.activeServerCalls = new Set();
+    this.currentStatus = '';
+    this.statusStartTime = null;
     
     this.logger.info('WorkflowController', 'Controller initialized');
   }
@@ -106,6 +102,50 @@
         timestamp: null
       }
     };
+  };
+  
+  // ============================================================================
+  // ENHANCED STATUS MANAGEMENT
+  // ============================================================================
+  
+  /**
+   * Update status with blasting real-time feedback
+   */
+  WorkflowController.prototype.updateStatus = function(message, showElapsed) {
+    var elapsed = '';
+    if (showElapsed && this.statusStartTime) {
+      var elapsedMs = Date.now() - this.statusStartTime;
+      elapsed = ' (' + Base.formatElapsed(elapsedMs) + ')';
+    }
+    
+    this.currentStatus = message + elapsed;
+    this.logger.info('WorkflowController', 'Status: ' + this.currentStatus);
+    
+    // Emit status update event for UI
+    var event = new CustomEvent('workflowStatusUpdate', {
+      detail: {
+        status: this.currentStatus,
+        state: this.currentState,
+        timestamp: new Date().toISOString()
+      }
+    });
+    window.dispatchEvent(event);
+  };
+  
+  /**
+   * Start timing for a status operation
+   */
+  WorkflowController.prototype.startStatusTimer = function(initialMessage) {
+    this.statusStartTime = Date.now();
+    this.updateStatus(initialMessage);
+  };
+  
+  /**
+   * Complete status operation with final message
+   */
+  WorkflowController.prototype.completeStatus = function(finalMessage) {
+    this.updateStatus(finalMessage, true);
+    this.statusStartTime = null;
   };
   
   // ============================================================================
@@ -148,9 +188,14 @@
       self.logger.warn('WorkflowController', 'Cannot start - not in IDLE state', {currentState: self.currentState});
       return;
     }
+    
     self.logger.info('WorkflowController', 'Starting workflow');
+    self.updateStatus('Initializing workflow...');
     self.workflowData = self.createInitialState();
-    self.executePhase1();
+    
+    setTimeout(function() {
+      self.executePhase1();
+    }, 100);
   };
   
   WorkflowController.prototype.resumeWorkflow = function(userData) {
@@ -159,19 +204,24 @@
       self.logger.warn('WorkflowController', 'Cannot resume - not paused', {currentState: self.currentState});
       return;
     }
+    
     self.logger.info('WorkflowController', 'Resuming workflow', {from: self.currentState, userData: userData});
-    if (self.currentState === WorkflowStates.VERSION_1_PAUSE) {
-      self.executePhase2();
-    } else if (self.currentState === WorkflowStates.VERSION_2_PAUSE) {
-      if (userData && userData.isOfficial) {
-        self.workflowData.phase2.isOfficial = true;
-        self.workflowData.phase3.committee = userData.committee;
-        self.workflowData.phase3.comments = userData.comments;
-        self.executePhase3();
-      } else {
-        self.completeWorkflow();
+    self.updateStatus('Resuming workflow...');
+    
+    setTimeout(function() {
+      if (self.currentState === WorkflowStates.VERSION_1_PAUSE) {
+        self.executePhase2();
+      } else if (self.currentState === WorkflowStates.VERSION_2_PAUSE) {
+        if (userData && userData.isOfficial) {
+          self.workflowData.phase2.isOfficial = true;
+          self.workflowData.phase3.committee = userData.committee;
+          self.workflowData.phase3.comments = userData.comments;
+          self.executePhase3();
+        } else {
+          self.completeWorkflow();
+        }
       }
-    }
+    }, 100);
   };
   
   // ============================================================================
@@ -183,33 +233,47 @@
     self.logger.info('WorkflowController', 'Executing Phase 1');
     self.transitionTo(WorkflowStates.PHASE_1_EXPORTING);
     
+    self.updateStatus('Phase 1: Preparing document export...');
+    
     self.exportDocument(function(exportResult) {
       if (!exportResult.success) {
         self.handleError('Phase 1 Export failed', exportResult.error);
         return;
       }
+      
       self.workflowData.phase1.exportedDocxBase64 = exportResult.data;
+      self.updateStatus('Export complete (' + Math.round(exportResult.data.length / 1024) + 'KB), parsing DOCX structure...');
       
       self.processDocx(exportResult, function(processResult) {
         if (!processResult.success) {
           self.handleError('Phase 1 DOCX processing failed', processResult.errors);
           return;
         }
+        
         self.workflowData.phase1.documentXml = processResult.metadata.modifiedXml || processResult.modifiedXml;
         self.workflowData.phase1.zip = processResult.metadata.zip;
         
+        var xmlSizeKB = Math.round(self.workflowData.phase1.documentXml.length / 1024);
+        self.updateStatus('DOCX parsed (' + xmlSizeKB + 'KB XML), analyzing suggestions...');
+        
         self.transitionTo(WorkflowStates.PHASE_1_ANALYZING);
-        self.analyzeSuggestions(processResult.metadata.modifiedXml || processResult.modifiedXml, function(suggestions) {
+        
+        self.analyzeSuggestions(self.workflowData.phase1.documentXml, function(suggestions) {
           self.workflowData.phase1.suggestions = suggestions;
+          
+          self.updateStatus('Found ' + suggestions.length + ' suggestions, generating version number...');
           
           self.generateBeforeVersion(function(versionResult) {
             if (!versionResult.success) {
               self.handleError('Failed to generate version number', versionResult.error);
               return;
             }
+            
             self.workflowData.phase1.versionNumber = versionResult.versionNumber;
             self.workflowData.versionCounter = versionResult.counter;
             self.versionManager.copyToClipboard(versionResult.versionNumber);
+            
+            self.updateStatus('Phase 1 complete - Ready for "Before" version: ' + versionResult.versionNumber);
             self.transitionTo(WorkflowStates.VERSION_1_PAUSE);
             self.logger.info('WorkflowController', 'Phase 1 complete - paused for versioning');
           });
@@ -222,14 +286,13 @@
     var self = this;
     var callId = 'export_' + Date.now();
     
-    self.logger.info('WorkflowController', 'Exporting document as DOCX');
+    self.startStatusTimer('Connecting to Google Docs export service...');
     
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       callback({success: false, error: 'Apps Script bridge not available'});
       return;
     }
     
-    // FIX: Add call tracking and timeout
     self.activeServerCalls.add(callId);
     var timeoutId = setTimeout(function() {
       if (self.activeServerCalls.has(callId)) {
@@ -239,16 +302,26 @@
       }
     }, 30000);
     
+    // Update status periodically during export
+    var statusInterval = setInterval(function() {
+      if (self.activeServerCalls.has(callId)) {
+        self.updateStatus('Exporting document as DOCX...', true);
+      } else {
+        clearInterval(statusInterval);
+      }
+    }, 500);
+    
     google.script.run
       .withSuccessHandler(function(result) {
         clearTimeout(timeoutId);
+        clearInterval(statusInterval);
+        
         if (!self.activeServerCalls.has(callId)) {
           self.logger.warn('WorkflowController', 'Export success handler called after timeout/cleanup');
           return;
         }
         self.activeServerCalls.delete(callId);
         
-        // FIX: Add result validation
         self.logger.info('WorkflowController', 'Document export result received', {
           hasResult: !!result,
           resultType: typeof result,
@@ -263,11 +336,13 @@
           return;
         }
         
-        self.logger.info('WorkflowController', 'Document exported successfully');
+        self.completeStatus('Document exported successfully');
         callback(result);
       })
       .withFailureHandler(function(error) {
         clearTimeout(timeoutId);
+        clearInterval(statusInterval);
+        
         if (!self.activeServerCalls.has(callId)) {
           self.logger.warn('WorkflowController', 'Export failure handler called after timeout/cleanup');
           return;
@@ -275,6 +350,7 @@
         self.activeServerCalls.delete(callId);
         
         self.logger.error('WorkflowController', 'Document export failed', error);
+        self.updateStatus('Export failed: ' + (error.message || error.toString()));
         callback({success: false, error: error.message || error.toString()});
       })
       .exportDocumentAsDocx();
@@ -282,30 +358,55 @@
   
   WorkflowController.prototype.processDocx = function(exportResult, callback) {
     var self = this;
-    self.logger.info('WorkflowController', 'Processing DOCX');
+    
+    self.updateStatus('Processing DOCX structure with JSZip...');
+    
     self.docxProcessor.process(exportResult, function(processResult) {
+      if (processResult.success) {
+        self.updateStatus('DOCX structure processed - ' + Object.keys(processResult.metadata.zip.files).length + ' files found');
+      }
       callback(processResult);
     });
   };
   
   WorkflowController.prototype.analyzeSuggestions = function(documentXml, callback) {
     var self = this;
-    self.logger.info('WorkflowController', 'Analyzing suggestions');
-    var suggestions = self.suggestionDetector.extractSuggestions(documentXml);
-    self.logger.info('WorkflowController', 'Suggestions analyzed', {totalSuggestions: suggestions.length});
-    callback(suggestions);
+    
+    self.updateStatus('Scanning document for tracked changes...');
+    
+    // Add artificial delay to show progress for large documents
+    setTimeout(function() {
+      var suggestions = self.suggestionDetector.extractSuggestions(documentXml);
+      
+      var insertions = suggestions.filter(function(s) { return s.type === 'insertion'; }).length;
+      var deletions = suggestions.filter(function(s) { return s.type === 'deletion'; }).length;
+      
+      self.updateStatus('Analysis complete: ' + insertions + ' insertions, ' + deletions + ' deletions');
+      self.logger.info('WorkflowController', 'Suggestions analyzed', {totalSuggestions: suggestions.length});
+      
+      setTimeout(function() {
+        callback(suggestions);
+      }, 200);
+    }, 300);
   };
   
   WorkflowController.prototype.generateBeforeVersion = function(callback) {
     var self = this;
-    self.logger.info('WorkflowController', 'Generating Before version number');
+    
+    self.updateStatus('Requesting version counter from server...');
+    
     self.versionManager.getVersionCounter(true, function(counterResult) {
       if (!counterResult.success) {
         callback(counterResult);
         return;
       }
+      
+      self.updateStatus('Generating version number...');
       var versionNumber = self.versionManager.generateVersionNumber(counterResult.counter, 'B', new Date());
-      callback({success: true, versionNumber: versionNumber, counter: counterResult.counter});
+      
+      setTimeout(function() {
+        callback({success: true, versionNumber: versionNumber, counter: counterResult.counter});
+      }, 200);
     });
   };
   
@@ -318,24 +419,42 @@
     self.logger.info('WorkflowController', 'Executing Phase 2');
     self.transitionTo(WorkflowStates.PHASE_2_TRANSFORMING);
     
+    self.updateStatus('Phase 2: Beginning XML transformation...');
+    
     self.transformXml(function(transformedXml) {
       self.workflowData.phase2.modifiedXml = transformedXml;
+      
+      var originalSize = Math.round(self.workflowData.phase1.documentXml.length / 1024);
+      var transformedSize = Math.round(transformedXml.length / 1024);
+      self.updateStatus('XML transformed (' + originalSize + 'KB → ' + transformedSize + 'KB), rebuilding DOCX...');
+      
       self.transitionTo(WorkflowStates.PHASE_2_REBUILDING);
+      
       self.rebuildDocx(transformedXml, function(rebuildResult) {
         if (!rebuildResult.success) {
           self.handleError('Phase 2 DOCX rebuild failed', rebuildResult.error);
           return;
         }
+        
         self.workflowData.phase2.rebuiltDocxBlob = rebuildResult.docxBlob;
+        
+        var blobSizeKB = Math.round(rebuildResult.docxBlob.size / 1024);
+        self.updateStatus('DOCX rebuilt (' + blobSizeKB + 'KB), converting to base64...');
+        
         self.docxProcessor.convertBlobToBase64(rebuildResult.docxBlob, function(conversionResult) {
           if (!conversionResult.success) {
             self.handleError('Phase 2 blob conversion failed', conversionResult.error);
             return;
           }
+          
           self.workflowData.phase2.rebuiltDocxBase64 = conversionResult.base64Data;
+          
+          var base64SizeKB = Math.round(conversionResult.base64Data.length / 1024);
+          self.updateStatus('Base64 conversion complete (' + base64SizeKB + 'KB), uploading to Drive...');
+          
           self.transitionTo(WorkflowStates.PHASE_2_REPLACING);
+          
           self.replaceDocument(conversionResult.base64Data, function(replaceResult) {
-            // FIX: Enhanced result validation and logging
             self.logger.info('WorkflowController', 'Document replacement callback received', {
               hasResult: !!replaceResult,
               resultType: typeof replaceResult,
@@ -352,13 +471,18 @@
               return;
             }
             
+            self.updateStatus('Document replacement successful, generating version number...');
+            
             self.generateAfterVersion(function(versionResult) {
               if (!versionResult.success) {
                 self.handleError('Failed to generate After version', versionResult.error);
                 return;
               }
+              
               self.workflowData.phase2.versionNumber = versionResult.versionNumber;
               self.versionManager.copyToClipboard(versionResult.versionNumber);
+              
+              self.updateStatus('Phase 2 complete - Ready for "After" version: ' + versionResult.versionNumber);
               self.transitionTo(WorkflowStates.VERSION_2_PAUSE);
               self.logger.info('WorkflowController', 'Phase 2 complete - paused for versioning');
             });
@@ -370,19 +494,30 @@
   
   WorkflowController.prototype.transformXml = function(callback) {
     var self = this;
-    self.logger.info('WorkflowController', 'Transforming XML');
-    var transformedXml = self.xmlTransformer.transformXml(self.workflowData.phase1.documentXml, self.workflowData.phase1.suggestions);
-    self.logger.info('WorkflowController', 'XML transformation complete');
-    callback(transformedXml);
+    
+    self.updateStatus('Applying suggestion markup transformations...');
+    
+    // Add progress indication for large documents
+    setTimeout(function() {
+      var transformedXml = self.xmlTransformer.transformXml(self.workflowData.phase1.documentXml, self.workflowData.phase1.suggestions);
+      
+      self.updateStatus('Cleaning up suggestion metadata...');
+      
+      setTimeout(function() {
+        self.logger.info('WorkflowController', 'XML transformation complete');
+        callback(transformedXml);
+      }, 200);
+    }, 300);
   };
   
   WorkflowController.prototype.rebuildDocx = function(modifiedXml, callback) {
     var self = this;
-    self.logger.info('WorkflowController', 'Rebuilding DOCX');
+    
+    self.updateStatus('Rebuilding DOCX with JSZip...');
+    
     self.docxProcessor.rebuildDocx(self.workflowData.phase1.zip, modifiedXml, callback);
   };
   
-  // FIX: Enhanced document replacement with better error handling
   WorkflowController.prototype.replaceDocument = function(base64Data, callback) {
     var self = this;
     var callId = 'replace_' + Date.now();
@@ -398,18 +533,28 @@
       return;
     }
     
-    // FIX: Add call tracking and timeout protection
     self.activeServerCalls.add(callId);
+    self.startStatusTimer('Uploading processed document to Google Drive...');
+    
     var timeoutId = setTimeout(function() {
       if (self.activeServerCalls.has(callId) && !callbackCalled) {
         self.activeServerCalls.delete(callId);
         callbackCalled = true;
         self.logger.error('WorkflowController', 'Document replacement timed out after 60 seconds', {callId: callId});
+        self.updateStatus('Document replacement timed out');
         callback({success: false, error: 'Document replacement timed out after 60 seconds'});
       }
     }, 60000);
     
-    // FIX: Wrapper to prevent multiple callback calls
+    // Update status periodically during upload
+    var statusInterval = setInterval(function() {
+      if (self.activeServerCalls.has(callId) && !callbackCalled) {
+        self.updateStatus('Uploading and converting document...', true);
+      } else {
+        clearInterval(statusInterval);
+      }
+    }, 1000);
+    
     function safeCallback(result) {
       if (callbackCalled) {
         self.logger.warn('WorkflowController', 'Attempted duplicate callback call prevented', {callId: callId});
@@ -417,6 +562,7 @@
       }
       callbackCalled = true;
       clearTimeout(timeoutId);
+      clearInterval(statusInterval);
       callback(result);
     }
     
@@ -428,7 +574,6 @@
         }
         self.activeServerCalls.delete(callId);
         
-        // FIX: Detailed result logging and validation
         self.logger.info('WorkflowController', 'Document replacement success handler called', {
           callId: callId,
           hasResult: !!result,
@@ -438,9 +583,9 @@
           hasReplacementDetails: result ? !!result.replacementDetails : false
         });
         
-        // FIX: Validate result structure
         if (!result) {
           self.logger.error('WorkflowController', 'Server returned null result', {callId: callId});
+          self.updateStatus('Server returned null result');
           safeCallback({success: false, error: 'Server returned null result'});
           return;
         }
@@ -451,6 +596,7 @@
             resultType: typeof result,
             result: result
           });
+          self.updateStatus('Server returned invalid result type');
           safeCallback({success: false, error: 'Server returned invalid result type: ' + typeof result});
           return;
         }
@@ -460,10 +606,12 @@
             callId: callId,
             result: result
           });
+          self.updateStatus('Document replacement failed: ' + (result.error || 'Unknown error'));
           safeCallback({success: false, error: result.error || 'Server reported failure but provided no error message'});
           return;
         }
         
+        self.completeStatus('Document replacement completed successfully');
         self.logger.info('WorkflowController', 'Document replaced successfully', {
           callId: callId,
           replacementDetails: result.replacementDetails
@@ -495,6 +643,7 @@
           }
         }
         
+        self.updateStatus('Document replacement failed: ' + errorMessage);
         safeCallback({success: false, error: errorMessage});
       })
       .replaceDocumentWithProcessedDocx(base64Data);
@@ -516,6 +665,8 @@
     self.logger.info('WorkflowController', 'Executing Phase 3 - Official version');
     self.transitionTo(WorkflowStates.PHASE_3_FINALIZING);
     
+    self.updateStatus('Phase 3: Creating official version...');
+    
     var officialVersionNumber = self.versionManager.generateVersionNumber(self.workflowData.versionCounter, 'O', new Date());
     self.workflowData.phase2.versionNumber = officialVersionNumber;
     
@@ -526,19 +677,28 @@
       comments: self.versionManager.formatCommentsText(self.workflowData.phase3.comments)
     };
     
+    self.updateStatus('Validating official version data...');
+    
     var validation = self.versionManager.validateVersionData(versionData);
     if (!validation.valid) {
       self.handleError('Phase 3 validation failed', validation.errors.join(', '));
       return;
     }
     
+    self.updateStatus('Writing version history to document...');
+    
     self.versionManager.writeVersionHistory(versionData, function(result) {
       if (!result.success) {
         self.handleError('Phase 3 write history failed', result.error);
         return;
       }
+      
+      self.updateStatus('Official version history written successfully');
       self.logger.info('WorkflowController', 'Phase 3 complete - version history written');
-      self.completeWorkflow();
+      
+      setTimeout(function() {
+        self.completeWorkflow();
+      }, 500);
     });
   };
   
@@ -548,18 +708,28 @@
   
   WorkflowController.prototype.completeWorkflow = function() {
     var self = this;
+    
+    var statsMessage = 'Workflow completed: ' + self.workflowData.phase1.suggestions.length + ' suggestions processed';
+    if (self.workflowData.phase2.isOfficial) {
+      statsMessage += ' (Official version created)';
+    }
+    
+    self.updateStatus(statsMessage);
+    
     self.logger.info('WorkflowController', 'Workflow completed successfully', {
       suggestionsProcessed: self.workflowData.phase1.suggestions.length,
       versionCounter: self.workflowData.versionCounter,
       isOfficial: self.workflowData.phase2.isOfficial
     });
+    
     self.transitionTo(WorkflowStates.COMPLETE);
   };
   
   WorkflowController.prototype.handleError = function(message, errorDetails) {
     var self = this;
     
-    // FIX: Enhanced error logging
+    self.updateStatus('ERROR: ' + message);
+    
     self.logger.error('WorkflowController', message, {
       errorDetails: errorDetails,
       errorType: typeof errorDetails,
@@ -585,11 +755,13 @@
     var self = this;
     self.logger.info('WorkflowController', 'Resetting workflow');
     
-    // FIX: Clear active server calls on reset
     self.activeServerCalls.clear();
+    self.currentStatus = '';
+    self.statusStartTime = null;
     
     self.currentState = WorkflowStates.IDLE;
     self.workflowData = self.createInitialState();
+    self.updateStatus('Ready to begin new workflow');
     self.emitStateChange('RESET', WorkflowStates.IDLE);
   };
   
@@ -626,8 +798,13 @@
       suggestionsCount: this.workflowData.phase1.suggestions.length,
       versionCounter: this.workflowData.versionCounter,
       isOfficial: this.workflowData.phase2.isOfficial,
-      activeServerCalls: Array.from(this.activeServerCalls)
+      activeServerCalls: Array.from(this.activeServerCalls),
+      currentStatus: this.currentStatus
     };
+  };
+  
+  WorkflowController.prototype.getCurrentStatus = function() {
+    return this.currentStatus;
   };
   
   // ============================================================================
@@ -639,5 +816,5 @@
   window.MIGOP.WorkflowStates = WorkflowStates;
   window.MIGOP.workflowController = new WorkflowController(Log.getLogger());
   
-  console.log('[MIGOP V3] workflow-controller.js loaded successfully');
+  console.log('[MIGOP V3] workflow-controller.js loaded successfully with enhanced status blasting');
 })();
