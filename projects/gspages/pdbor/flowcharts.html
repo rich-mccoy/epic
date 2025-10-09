@@ -65,14 +65,23 @@
         }
         
         .tab-content {
-            display: none;
             width: 100%;
             background: white;
             min-height: 2000px;
+            position: absolute;
+            top: 80px;
+            left: 0;
+            right: 0;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
         }
         
         .tab-content.active {
-            display: block;
+            position: relative;
+            top: 0;
+            opacity: 1;
+            visibility: visible;
         }
         
         iframe {
@@ -91,11 +100,11 @@
             <button class="tab-button" onclick="switchTab(1)">Delegate Appeal Process</button>
         </div>
         
-        <div class="tab-content active">
+        <div class="tab-content active" id="tab0">
             <iframe src="https://viewer.diagrams.net/?tags=%7B%7D&lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=ADeVwjBJrnUlAPzNh416&border=0&title=PDBOR.drawio&dark=auto#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1juMUoM-lBcLIKY9kCqr0rvd2qLp_U6jY%26export%3Ddownload"></iframe>
         </div>
         
-        <div class="tab-content">
+        <div class="tab-content" id="tab1">
             <iframe src="https://viewer.diagrams.net/?tags=%7B%7D&lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=9fCJyGFOonEVgq7NZ5u4&border=0&title=PDBOR.drawio&dark=auto#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1juMUoM-lBcLIKY9kCqr0rvd2qLp_U6jY%26export%3Ddownload"></iframe>
         </div>
     </div>
@@ -121,6 +130,16 @@
                 }
             });
         }
+        
+        // Ensure both iframes load immediately
+        window.addEventListener('load', function() {
+            const iframes = document.querySelectorAll('iframe');
+            iframes.forEach(iframe => {
+                if (!iframe.src) {
+                    iframe.src = iframe.getAttribute('data-src');
+                }
+            });
+        });
     </script>
 </body>
 </html>
