@@ -1,1 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reform Package Flow Charts</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .tab-container {
+            width: 100%;
+            background: white;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            background-color: #2c5f7c;
+            border-bottom: 3px solid #1a3a4d;
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 15px 20px;
+            background-color: #2c5f7c;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            border-right: 1px solid #1a3a4d;
+        }
+        
+        .tab-button:last-child {
+            border-right: none;
+        }
+        
+        .tab-button:hover {
+            background-color: #3d7a9e;
+        }
+        
+        .tab-button.active {
+            background-color: #c62828;
+        }
+        
+        .tab-content {
+            display: none;
+            width: 100%;
+            background: white;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        iframe {
+            width: 100%;
+            height: 2200px;
+            border: none;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="tab-container">
+        <div class="tab-buttons">
+            <button class="tab-button active" onclick="switchTab(0)">Delegate Appeal Criteria</button>
+            <button class="tab-button" onclick="switchTab(1)">Delegate Appeal Process</button>
+        </div>
+        
+        <div class="tab-content active">
+            <iframe src="https://viewer.diagrams.net/?tags=%7B%7D&lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=ADeVwjBJrnUlAPzNh416&border=0&title=PDBOR.drawio&dark=auto#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1juMUoM-lBcLIKY9kCqr0rvd2qLp_U6jY%26export%3Ddownload"></iframe>
+        </div>
+        
+        <div class="tab-content">
+            <iframe src="https://viewer.diagrams.net/?tags=%7B%7D&lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=9fCJyGFOonEVgq7NZ5u4&border=0&title=PDBOR.drawio&dark=auto#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1juMUoM-lBcLIKY9kCqr0rvd2qLp_U6jY%26export%3Ddownload"></iframe>
+        </div>
+    </div>
 
+    <script>
+        function switchTab(index) {
+            const buttons = document.querySelectorAll('.tab-button');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            buttons.forEach((btn, i) => {
+                if (i === index) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            contents.forEach((content, i) => {
+                if (i === index) {
+                    content.classList.add('active');
+                } else {
+                    content.classList.remove('active');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
