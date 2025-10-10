@@ -19,6 +19,17 @@
         .tab-container {
             width: 100%;
             background: white;
+            position: relative;
+        }
+        
+        .version {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            font-size: 11px;
+            color: #999;
+            font-family: monospace;
+            z-index: 100;
         }
         
         .tab-buttons {
@@ -77,21 +88,12 @@
             width: 100%;
             background: white;
             min-height: 2000px;
-            position: absolute;
-            top: 80px;
-            left: 0;
-            right: 0;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s, visibility 0.3s;
+            display: none;
             padding-top: 20px;
         }
         
         .tab-content.active {
-            position: relative;
-            top: 0;
-            opacity: 1;
-            visibility: visible;
+            display: block;
         }
         
         iframe {
@@ -109,6 +111,7 @@
 </head>
 <body>
     <div class="tab-container">
+        <div class="version">v14</div>
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(0)">Delegate Rights Violation Test</button>
             <button class="tab-button" onclick="switchTab(1)">Delegate Complaint Process</button>
