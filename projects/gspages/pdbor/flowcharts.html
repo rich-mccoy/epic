@@ -118,8 +118,9 @@
     <script>
         let currentTabs = [];
         
-        // Load tabs from JSON file (full GitHub Pages URL for portability)
-        const jsonUrl = 'https://rich-mccoy.github.io/epic/projects/gspages/pdbor/pdbor-flowcharts.json?v=1';
+        // Load tabs from JSON file with automatic cache buster based on timestamp
+        const cacheBuster = new Date().getTime();
+        const jsonUrl = `https://rich-mccoy.github.io/epic/projects/gspages/pdbor/pdbor-flowcharts.json?v=${cacheBuster}`;
         
         fetch(jsonUrl)
             .then(response => response.json())
