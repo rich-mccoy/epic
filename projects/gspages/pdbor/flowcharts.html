@@ -111,7 +111,7 @@
 </head>
 <body>
     <div class="tab-container">
-        <div class="version">v14</div>
+        <div class="version">v17</div>
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(0)">Delegate Rights Violation Test</button>
             <button class="tab-button" onclick="switchTab(1)">Delegate Complaint Process</button>
@@ -127,9 +127,10 @@
     </div>
 
     <script>
-        function switchTab(index) {
+        // Make switchTab globally accessible
+        window.switchTab = function(index) {
             const buttons = document.querySelectorAll('.tab-button');
-            const contents = document.querySelectorAll('.tab-content');
+            const contents = document.querranselectorAll('.tab-content');
             
             buttons.forEach((btn, i) => {
                 if (i === index) {
@@ -147,9 +148,22 @@
                 }
             });
             
+            // Scroll to top of page
+            window.scrollTo(0, 0);
+            
             // Update URL hash
             window.location.hash = 'tab' + index;
         }
+        
+        // Detect when iframe tries to navigate to #tab1
+        window.addEventListener('hashchange', function() {
+            const hash = window.location.hash;
+            if (hash === '#tab1') {
+                switchTab(1);
+            } else if (hash === '#tab0') {
+                switchTab(0);
+            }
+        });
         
         // Ensure both iframes load immediately
         window.addEventListener('load', function() {
