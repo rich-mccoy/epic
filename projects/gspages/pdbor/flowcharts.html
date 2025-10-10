@@ -111,22 +111,33 @@
 </head>
 <body>
     <div class="tab-container">
-        <div class="version">v27-restored</div>
+        <div class="version">v32</div>
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(0)">Delegate Rights Violation Test</button>
             <button class="tab-button" onclick="switchTab(1)">Delegate Complaint Process</button>
         </div>
         
         <div class="tab-content active" id="tab0">
-            <iframe src="https://viewer.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=ADeVwjBJrnUlAPzNh416&title=PDBOR.drawio#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1juMUoM-lBcLIKY9kCqr0rvd2qLp_U6jY%26export%3Ddownload"></iframe>
+            <iframe id="iframe0"></iframe>
         </div>
         
         <div class="tab-content" id="tab1">
-            <iframe src="https://viewer.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=9fCJyGFOonEVgq7NZ5u4&title=PDBOR.drawio#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1juMUoM-lBcLIKY9kCqr0rvd2qLp_U6jY%26export%3Ddownload"></iframe>
+            <iframe id="iframe1"></iframe>
         </div>
     </div>
 
     <script>
+        // Generate iframe URLs with timestamp cache buster
+        const timestamp = Date.now();
+        const baseGoogleDriveUrl = 'https://drive.google.com/uc?id=1juMUoM-lBcLIKY9kCqr0rvd2qLp_U6jY&export=download&_cb=' + timestamp;
+        const encodedUrl = encodeURIComponent(baseGoogleDriveUrl);
+        
+        document.getElementById('iframe0').src = 
+            'https://viewer.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=ADeVwjBJrnUlAPzNh416&title=PDBOR.drawio#U' + encodedUrl;
+        
+        document.getElementById('iframe1').src = 
+            'https://viewer.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=9fCJyGFOonEVgq7NZ5u4&title=PDBOR.drawio#U' + encodedUrl;
+        
         function switchTab(index) {
             const buttons = document.querySelectorAll('.tab-button');
             const contents = document.querySelectorAll('.tab-content');
