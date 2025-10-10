@@ -19,17 +19,6 @@
         .tab-container {
             width: 100%;
             background: white;
-            position: relative;
-        }
-        
-        .version {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            font-size: 11px;
-            color: #999;
-            font-family: monospace;
-            z-index: 100;
         }
         
         .tab-buttons {
@@ -39,6 +28,7 @@
             padding: 12px 12px 0 12px;
             margin-bottom: 0;
             border-bottom: 3px solid #2c5f7c;
+            flex-wrap: wrap;
         }
         
         .tab-button {
@@ -87,56 +77,92 @@
         .tab-content {
             width: 100%;
             background: white;
-            min-height: 2000px;
             display: none;
-            padding-top: 20px;
+            padding: 20px;
         }
         
         .tab-content.active {
             display: block;
         }
         
-        iframe {
+        .pdf-container {
             width: 100%;
-            height: 2200px;
-            border: none;
-            display: block;
-            background: white;
+            height: 800px;
+            border: 1px solid #ddd;
         }
         
-        #tab1 iframe {
-            height: 5000px;
+        .pdf-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
         }
     </style>
 </head>
 <body>
     <div class="tab-container">
-        <div class="version">v32</div>
-        <div class="tab-buttons">
-            <button class="tab-button active" onclick="switchTab(0)">Delegate Rights Violation Test</button>
-            <button class="tab-button" onclick="switchTab(1)">Delegate Complaint Process</button>
+        <div class="tab-buttons" id="tabButtons">
+            <div class="loading">Loading tabs...</div>
         </div>
         
-        <div class="tab-content active" id="tab0">
-            <iframe id="iframe0"></iframe>
-        </div>
-        
-        <div class="tab-content" id="tab1">
-            <iframe id="iframe1"></iframe>
+        <div id="tabContents">
+            <div class="loading">Loading content...</div>
         </div>
     </div>
 
     <script>
-        // Generate iframe URLs with timestamp cache buster
-        const timestamp = Date.now();
-        const baseGoogleDriveUrl = 'https://drive.google.com/uc?id=1juMUoM-lBcLIKY9kCqr0rvd2qLp_U6jY&export=download&_cb=' + timestamp;
-        const encodedUrl = encodeURIComponent(baseGoogleDriveUrl);
+        let currentTabs = [];
         
-        document.getElementById('iframe0').src = 
-            'https://viewer.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=ADeVwjBJrnUlAPzNh416&title=PDBOR.drawio#U' + encodedUrl;
+        // Load tabs from JSON file
+        fetch('pdbor-flowcharts.json')
+            .then(response => response.json())
+            .then(data => {
+                currentTabs = data.tabs;
+                buildTabs();
+            })
+            .catch(error => {
+                console.error('Error loading tabs:', error);
+                document.getElementById('tabButtons').innerHTML = '<div class="loading">Error loading tabs configuration</div>';
+            });
         
-        document.getElementById('iframe1').src = 
-            'https://viewer.diagrams.net/?lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=0&page-id=9fCJyGFOonEVgq7NZ5u4&title=PDBOR.drawio#U' + encodedUrl;
+        function buildTabs() {
+            const tabButtonsContainer = document.getElementById('tabButtons');
+            const tabContentsContainer = document.getElementById('tabContents');
+            
+            // Clear loading messages
+            tabButtonsContainer.innerHTML = '';
+            tabContentsContainer.innerHTML = '';
+            
+            // Build tab buttons
+            currentTabs.forEach((tab, index) => {
+                const button = document.createElement('button');
+                button.className = 'tab-button' + (index === 0 ? ' active' : '');
+                button.textContent = tab.label;
+                button.onclick = () => switchTab(index);
+                tabButtonsContainer.appendChild(button);
+            });
+            
+            // Build tab contents
+            currentTabs.forEach((tab, index) => {
+                const content = document.createElement('div');
+                content.className = 'tab-content' + (index === 0 ? ' active' : '');
+                
+                const pdfContainer = document.createElement('div');
+                pdfContainer.className = 'pdf-container';
+                
+                const iframe = document.createElement('iframe');
+                iframe.src = `https://drive.google.com/file/d/${tab.pdfId}/preview`;
+                
+                pdfContainer.appendChild(iframe);
+                content.appendChild(pdfContainer);
+                tabContentsContainer.appendChild(content);
+            });
+        }
         
         function switchTab(index) {
             const buttons = document.querySelectorAll('.tab-button');
