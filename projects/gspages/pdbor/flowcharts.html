@@ -32,6 +32,26 @@
             z-index: 100;
         }
         
+        .debug-log {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            width: 300px;
+            max-height: 200px;
+            background: rgba(0,0,0,0.8);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 10px;
+            overflow-y: auto;
+            z-index: 1000;
+            border: 1px solid #0f0;
+        }
+        
+        .debug-log div {
+            margin: 2px 0;
+        }
+        
         .tab-buttons {
             display: flex;
             background: #f8f9fa;
@@ -111,8 +131,9 @@
     </style>
 </head>
 <body>
+    <div class="debug-log" id="debugLog"></div>
     <div class="tab-container">
-        <div class="version">v22</div>
+        <div class="version">v24</div>
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(0)">Delegate Rights Violation Test</button>
             <button class="tab-button" onclick="switchTab(1)">Delegate Complaint Process</button>
@@ -128,13 +149,27 @@
     </div>
 
     <script>
+        const debugLog = document.getElementById('debugLog');
+        function log(msg) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toLocaleTimeString() + ': ' + msg;
+            debugLog.appendChild(div);
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+        
+        log('Script loaded');
+        
         function switchTab(index) {
+            log('switchTab called with: ' + index);
             const buttons = document.querySelectorAll('.tab-button');
             const contents = document.querySelectorAll('.tab-content');
+            
+            log('Found ' + buttons.length + ' buttons and ' + contents.length + ' contents');
             
             buttons.forEach((btn, i) => {
                 if (i === index) {
                     btn.classList.add('active');
+                    log('Activated button ' + i);
                 } else {
                     btn.classList.remove('active');
                 }
@@ -143,6 +178,7 @@
             contents.forEach((content, i) => {
                 if (i === index) {
                     content.classList.add('active');
+                    log('Activated content ' + i);
                 } else {
                     content.classList.remove('active');
                 }
@@ -151,6 +187,7 @@
         
         window.addEventListener('hashchange', function() {
             const hash = window.location.hash;
+            log('Hash changed to: ' + hash);
             if (hash === '#tab1') {
                 switchTab(1);
             } else if (hash === '#tab0') {
@@ -159,6 +196,7 @@
         });
         
         window.addEventListener('load', function() {
+            log('Page loaded');
             const hash = window.location.hash;
             if (hash === '#tab0') {
                 switchTab(0);
