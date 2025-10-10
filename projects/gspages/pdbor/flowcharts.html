@@ -78,20 +78,20 @@
             width: 100%;
             background: white;
             display: none;
-            padding: 20px;
+            padding: 0;
         }
         
         .tab-content.active {
             display: block;
         }
         
-        .pdf-container {
+        .flowchart-container {
             width: 100%;
             height: 800px;
-            border: 1px solid #ddd;
+            border: none;
         }
         
-        .pdf-container iframe {
+        .flowchart-container iframe {
             width: 100%;
             height: 100%;
             border: none;
@@ -118,8 +118,10 @@
     <script>
         let currentTabs = [];
         
-        // Load tabs from JSON file
-        fetch('pdbor-flowcharts.json')
+        // Load tabs from JSON file using raw GitHub link
+        const jsonUrl = 'https://raw.githubusercontent.com/rich-mccoy/epic/refs/heads/main/projects/gspages/pdbor/pdbor-flowcharts.json';
+        
+        fetch(jsonUrl)
             .then(response => response.json())
             .then(data => {
                 currentTabs = data.tabs;
@@ -138,28 +140,28 @@
             tabButtonsContainer.innerHTML = '';
             tabContentsContainer.innerHTML = '';
             
-            // Build tab buttons
+            // Build tab buttons from JSON
             currentTabs.forEach((tab, index) => {
                 const button = document.createElement('button');
                 button.className = 'tab-button' + (index === 0 ? ' active' : '');
-                button.textContent = tab.label;
+                button.textContent = tab.name;
                 button.onclick = () => switchTab(index);
                 tabButtonsContainer.appendChild(button);
             });
             
-            // Build tab contents
+            // Build tab contents from JSON
             currentTabs.forEach((tab, index) => {
                 const content = document.createElement('div');
                 content.className = 'tab-content' + (index === 0 ? ' active' : '');
                 
-                const pdfContainer = document.createElement('div');
-                pdfContainer.className = 'pdf-container';
+                const flowchartContainer = document.createElement('div');
+                flowchartContainer.className = 'flowchart-container';
                 
                 const iframe = document.createElement('iframe');
-                iframe.src = `https://drive.google.com/file/d/${tab.pdfId}/preview`;
+                iframe.src = tab.file;
                 
-                pdfContainer.appendChild(iframe);
-                content.appendChild(pdfContainer);
+                flowchartContainer.appendChild(iframe);
+                content.appendChild(flowchartContainer);
                 tabContentsContainer.appendChild(content);
             });
         }
