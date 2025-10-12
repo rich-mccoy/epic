@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta Decorator: Dev History in Code Files</title>
+    <style>
+        :root {
+            --primary: #C8102E;
+            --primary-dark: #9A0826;
+            --text: #2d3748;
+            --bg: #ffffff;
+            --bg-light: #f7fafc;
+            --border: #e2e8f0;
+            --code-bg: #1a202c;
+            --code-text: #e2e8f0;
+            --success: #48bb78;
+            --info: #3182ce;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg-light);
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: var(--bg);
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        header {
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+        
+        h2 {
+            color: var(--primary-dark);
+            font-size: 1.5rem;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        h3 {
+            color: var(--text);
+            font-size: 1.2rem;
+            margin-top: 25px;
+            margin-bottom: 12px;
+        }
+        
+        p {
+            margin-bottom: 15px;
+        }
+        
+        ul, ol {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        code {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid var(--primary);
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .callout {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+        
+        .callout-info {
+            background: #ebf8ff;
+            border-color: var(--info);
+            color: #2c5282;
+        }
+        
+        .callout-success {
+            background: #f0fff4;
+            border-color: var(--success);
+            color: #22543d;
+        }
+        
+        .callout-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+        
+        strong {
+            color: var(--primary-dark);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Meta Decorator: Dev History in Code Files</h1>
+            <p><strong>Date:</strong> 2025-10-12 | <strong>Author:</strong> Claude (Sonnet 4.5)</p>
+        </header>
+
+        <div class="callout callout-info">
+            <div class="callout-title">Core Principle</div>
+            <p><strong>Every code file should document its own evolution.</strong><br>
+            Future AI needs to see the development path to understand current state.</p>
+        </div>
+
+        <h2>Why Dev History Matters</h2>
+
+        <h3>Problem Without Dev History</h3>
+        <ul>
+            <li>AI sees code snapshot with no context</li>
+            <li>Doesn't know what was tried and failed</li>
+            <li>Repeats same mistakes or undoes working fixes</li>
+            <li>Can't distinguish intentional design from legacy cruft</li>
+        </ul>
+
+        <h3>Solution: Self-Documenting Code Files</h3>
+        <p>Add a <strong>DEV HISTORY</strong> header block to track evolution over sessions.</p>
+
+        <h2>Dev History Template</h2>
+
+        <pre><code>/**
+ * ============================================================================
+ * [FILE NAME / MODULE NAME]
+ * ============================================================================
+ * 
+ * DEV HISTORY:
+ * -----------
+ * YYYY-MM-DD - [What was done]
+ *            - [Key implementation details]
+ *            - [Why this approach was chosen]
+ * 
+ * YYYY-MM-DD - [Next session changes]
+ *            - [What broke and how it was fixed]
+ *            - [Performance improvements made]
+ * 
+ * KNOWN ISSUES:
+ * - [Current bugs or limitations]
+ * - [Planned improvements]
+ * 
+ * ============================================================================
+ */</code></pre>
+
+        <h2>What to Document</h2>
+
+        <h3>Major Changes</h3>
+        <ul>
+            <li><strong>Algorithm changes</strong> - "Changed from sync loops to chunked processing"</li>
+            <li><strong>Architecture shifts</strong> - "Moved from status blaster to event routing"</li>
+            <li><strong>API changes</strong> - "Added formattedDate parameter to version data"</li>
+            <li><strong>Bug fixes</strong> - "Fixed browser freeze by adding yields every 50ms"</li>
+        </ul>
+
+        <h3>Critical Context</h3>
+        <ul>
+            <li><strong>Why something exists</strong> - "CSP blocks external scripts, must use fetch+eval"</li>
+            <li><strong>Failed attempts</strong> - "Tried localStorage but Apps Script doesn't support it"</li>
+            <li><strong>Performance tuning</strong> - "Reduced chunk size from 50→25 for better UX"</li>
+            <li><strong>Dependencies</strong> - "Requires migop-base, migop-log to be loaded first"</li>
+        </ul>
+
+        <h3>Known Issues Section</h3>
+        <ul>
+            <li>Current bugs that need fixing</li>
+            <li>Limitations to be aware of</li>
+            <li>Planned improvements</li>
+            <li>Edge cases not yet handled</li>
+        </ul>
+
+        <h2>Example: Real Dev History</h2>
+
+        <pre><code>/**
+ * DEV HISTORY:
+ * -----------
+ * 2025-10-04 - Initial V3 implementation with chunked processing
+ *            - Added status routing via CustomEvents
+ *            - Implemented 3-phase workflow with pause points
+ * 
+ * 2025-10-12 - CRITICAL FIX: Browser freeze on large docs
+ *            - chunkProcess() was defined but NEVER CALLED
+ *            - Suggestion analysis still had synchronous loops
+ *            - XML transformation had synchronous loops
+ *            - Added TRUE chunking with yields to all heavy operations
+ *            - Added rapid status blasting (every 5 items)
+ *            - Reduced chunk sizes: 20→10 for XML, 50→25 for suggestions
+ *            - Added time-based yielding (yield every 50ms max)
+ * 
+ * KNOWN ISSUES:
+ * - None currently
+ */</code></pre>
+
+        <h2>When to Update Dev History</h2>
+
+        <div class="callout callout-success">
+            <p><strong>Update at the END of every session when you:</strong></p>
+            <ol>
+                <li>Fix a bug</li>
+                <li>Add a feature</li>
+                <li>Refactor code</li>
+                <li>Change an algorithm</li>
+                <li>Discover a limitation</li>
+                <li>Tune performance</li>
+            </ol>
+        </div>
+
+        <h2>Benefits for AI-to-AI Handoff</h2>
+
+        <h3>Context Preservation</h3>
+        <p>Next AI sees:</p>
+        <ul>
+            <li>What was built when</li>
+            <li>What problems were solved</li>
+            <li>What approaches failed</li>
+            <li>Current state of completion</li>
+        </ul>
+
+        <h3>Prevents Regression</h3>
+        <p>Seeing "CRITICAL FIX: Browser freeze" in history prevents AI from:</p>
+        <ul>
+            <li>Removing the fix</li>
+            <li>Reintroducing synchronous loops</li>
+            <li>Undoing performance optimizations</li>
+        </ul>
+
+        <h3>Accelerates Debugging</h3>
+        <p>If something breaks, dev history shows:</p>
+        <ul>
+            <li>When it last worked</li>
+            <li>What changed recently</li>
+            <li>Known issues to check first</li>
+        </ul>
+
+        <h2>Integration with Knowledge Graph</h2>
+
+        <p><strong>Dev History in Code ≠ Decorators in KG</strong></p>
+
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <thead style="background: var(--primary); color: white;">
+                <tr>
+                    <th style="padding: 12px; text-align: left; border: 1px solid var(--border);">Dev History (in code files)</th>
+                    <th style="padding: 12px; text-align: left; border: 1px solid var(--border);">Decorators (in KG)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="background: var(--bg-light);">
+                    <td style="padding: 12px; border: 1px solid var(--border);">Chronological changelog</td>
+                    <td style="padding: 12px; border: 1px solid var(--border);">Architectural explanations</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid var(--border);">Session-by-session updates</td>
+                    <td style="padding: 12px; border: 1px solid var(--border);">Deep-dive documentation</td>
+                </tr>
+                <tr style="background: var(--bg-light);">
+                    <td style="padding: 12px; border: 1px solid var(--border);">Lives IN the code file</td>
+                    <td style="padding: 12px; border: 1px solid var(--border);">Linked FROM KG pages</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid var(--border);">Quick timeline reference</td>
+                    <td style="padding: 12px; border: 1px solid var(--border);">Detailed "why" and "how"</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Use both:</strong> Dev history for timeline, decorators for deep explanations.</p>
+
+        <h2>Checklist for Every Session End</h2>
+
+        <div style="background: var(--bg-light); padding: 20px; border-radius: 6px; margin: 20px 0;">
+            <p><strong>Before finishing, update dev history with:</strong></p>
+            <ul style="list-style: none;">
+                <li>☐ Date of this session</li>
+                <li>☐ What was changed/fixed</li>
+                <li>☐ Why the change was needed</li>
+                <li>☐ Update KNOWN ISSUES section</li>
+            </ul>
+        </div>
+
+        <h2>Files That Need Dev History</h2>
+
+        <p><strong>Add to ALL implementation files:</strong></p>
+        <ul>
+            <li>workflow-controller.js ✅</li>
+            <li>workflow-ui.js (needs it)</li>
+            <li>version-manager.js (needs it)</li>
+            <li>v3.gs (needs it)</li>
+            <li>bootstrap.js (needs it)</li>
+        </ul>
+
+        <p><strong>Example added to workflow-controller.js this session:</strong> Shows 2025-10-04 initial + 2025-10-12 freeze fix</p>
+
+    </div>
+</body>
+</html>
