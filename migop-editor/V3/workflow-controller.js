@@ -424,27 +424,21 @@
     });
   };
   
-  // TRUE CHUNKED SUGGESTION ANALYSIS - Now uses chunkProcess()
+  // SUGGESTION ANALYSIS - Uses V1 extractSuggestions (already efficient)
   WorkflowController.prototype.analyzeSuggestionsChunked = function(documentXml, callback) {
     var self = this;
     self.updateStatus('Scanning XML for tracked changes...');
     
     self.yieldToUI(function() {
-      var xmlChunks = documentXml.match(/<w:(?:ins|del)[^>]*>[\s\S]*?<\/w:(?:ins|del)>/g) || [];
-      
-      if (xmlChunks.length === 0) {
-        self.updateStatus('No tracked changes found in document');
-        callback([]);
-        return;
-      }
-      
-      self.updateStatus('Found ' + xmlChunks.length + ' tracked change elements, analyzing...');
-      
-      // Use chunkProcess with reduced chunk size for better responsiveness
-      self.chunkProcess(xmlChunks, 25, function(chunk, idx) {
-        return self.suggestionDetector.parseSuggestionElement(chunk);
-      }, function(results) {
-        var suggestions = results.filter(function(s) { return s !== null && s !== undefined; });
+      try {
+        // V1 Detection module processes entire XML efficiently
+        var suggestions = self.suggestionDetector.extractSuggestions(documentXml);
+        
+        if (suggestions.length === 0) {
+          self.updateStatus('No tracked changes found in document');
+          callback([]);
+          return;
+        }
         
         var insertions = suggestions.filter(function(s) { return s.type === 'insertion'; }).length;
         var deletions = suggestions.filter(function(s) { return s.type === 'deletion'; }).length;
@@ -454,7 +448,9 @@
         self.yieldToUI(function() {
           callback(suggestions);
         }, 200);
-      });
+      } catch (error) {
+        self.handleError('Suggestion analysis failed', error.message || error.toString());
+      }
     }, 100);
   };
   
