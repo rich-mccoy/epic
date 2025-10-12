@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decorator: V3 Status Routing & Anti-Freeze Architecture</title>
+    <style>
+        :root {
+            --primary: #C8102E;
+            --primary-dark: #9A0826;
+            --text: #2d3748;
+            --text-light: #718096;
+            --bg: #ffffff;
+            --bg-light: #f7fafc;
+            --border: #e2e8f0;
+            --code-bg: #1a202c;
+            --code-text: #e2e8f0;
+            --success: #48bb78;
+            --warning: #ed8936;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg-light);
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: var(--bg);
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        header {
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+        
+        .meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .meta-label {
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        h2 {
+            color: var(--primary-dark);
+            font-size: 1.5rem;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        h3 {
+            color: var(--text);
+            font-size: 1.2rem;
+            margin-top: 25px;
+            margin-bottom: 12px;
+        }
+        
+        h4 {
+            color: var(--text);
+            font-size: 1.05rem;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        p {
+            margin-bottom: 15px;
+        }
+        
+        ul, ol {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        code {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid var(--primary);
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .diagram {
+            background: var(--bg-light);
+            padding: 20px;
+            border-radius: 6px;
+            border: 2px solid var(--border);
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid var(--border);
+        }
+        
+        th {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:nth-child(even) {
+            background: var(--bg-light);
+        }
+        
+        .callout {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+        
+        .callout-warning {
+            background: #fffaf0;
+            border-color: var(--warning);
+            color: #744210;
+        }
+        
+        .callout-info {
+            background: #ebf8ff;
+            border-color: #3182ce;
+            color: #2c5282;
+        }
+        
+        .callout-success {
+            background: #f0fff4;
+            border-color: var(--success);
+            color: #22543d;
+        }
+        
+        .callout-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .file-list {
+            background: var(--bg-light);
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        
+        .file-list li {
+            font-family: monospace;
+        }
+        
+        strong {
+            color: var(--primary-dark);
+        }
+        
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 10px 20px;
+            background: var(--primary);
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+        }
+        
+        .back-link:hover {
+            background: var(--primary-dark);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Decorator: V3 Status Routing & Anti-Freeze Architecture</h1>
+            <div class="meta">
+                <div class="meta-item">
+                    <span class="meta-label">Date:</span>
+                    <span>2025-10-04</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Author:</span>
+                    <span>Claude (Sonnet 4.5)</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Context:</span>
+                    <span>Critical production fixes for MIGOP Editor V3</span>
+                </div>
+            </div>
+        </header>
+
+        <h2>Problem Context</h2>
+        <p>V3 had two critical production blockers:</p>
+        <ol>
+            <li><strong>Browser freeze</strong> - Large documents (100+ pages, 100+ suggestions) locked the UI thread during processing</li>
+            <li><strong>Status blackout</strong> - Users saw no feedback during operations; couldn't diagnose hangs</li>
+        </ol>
+        <p>Previous implementation had a <code>chunkProcess()</code> method that was <strong>never actually called</strong>. Status updates went to a separate "status blaster" component instead of progress step status lines.</p>
+
+        <h2>Solution Architecture</h2>
+
+        <h3>1. Status Event Flow (Critical Path)</h3>
+        <div class="diagram">Controller Layer                    UI Layer
+───────────────                    ─────────
+
+updateStatus(msg) ──────────────> handleStatusUpdate(event)
+  │                                  │
+  │ emits CustomEvent:               ├─> getActiveStepForState(state)
+  │ 'workflowStatusUpdate'           │   │
+  │ {                                │   └─> returns stepIndex (0-5)
+  │   status: "Export complete...",  │
+  │   state: PHASE_1_EXPORTING,      └─> updateStepStatus(stepIndex, msg)
+  │   timestamp: ISO8601                  │
+  │ }                                     └─> Updates DOM: #step-{index}-status
+  │
+  └─> Also logs to console</div>
+
+        <div class="callout callout-info">
+            <div class="callout-title">Key Implementation Detail</div>
+            The UI does NOT have a separate status component. Status text flows directly into whichever progress step is currently active based on workflow state.
+        </div>
+
+        <h3>State → Step Index Mapping</h3>
+        <div class="callout callout-warning">
+            <div class="callout-title">⚠️ Load-Bearing Logic</div>
+            This routing table is critical - any new states must be added here
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Workflow State</th>
+                    <th>Step Index</th>
+                    <th>Step Title</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>IDLE</td>
+                    <td>0</td>
+                    <td>Ready</td>
+                </tr>
+                <tr>
+                    <td>PHASE_1_EXPORTING, PHASE_1_ANALYZING</td>
+                    <td>1</td>
+                    <td>Export & Analyze</td>
+                </tr>
+                <tr>
+                    <td>VERSION_1_PAUSE</td>
+                    <td>2</td>
+                    <td>Version (Before)</td>
+                </tr>
+                <tr>
+                    <td>PHASE_2_TRANSFORMING, PHASE_2_REBUILDING, PHASE_2_REPLACING</td>
+                    <td>3</td>
+                    <td>Transform & Replace</td>
+                </tr>
+                <tr>
+                    <td>VERSION_2_PAUSE</td>
+                    <td>4</td>
+                    <td>Version (After)</td>
+                </tr>
+                <tr>
+                    <td>PHASE_3_FINALIZING, COMPLETE</td>
+                    <td>5</td>
+                    <td>Complete</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Located in:</strong> <code>workflow-ui.js</code> → <code>getActiveStepForState()</code></p>
+
+        <h3>2. Anti-Freeze: Chunked Processing Implementation</h3>
+        
+        <div class="callout callout-info">
+            <div class="callout-title">Core Principle</div>
+            Never run synchronous loops over large datasets. Always yield control back to the browser's event loop.
+        </div>
+
+        <h4>The <code>chunkProcess()</code> Method</h4>
+        <pre><code>chunkProcess(data, chunkSize, processor, onComplete) {
+  var index = 0;
+  var results = [];
+  
+  function processChunk() {
+    var startTime = Date.now();
+    
+    // Process items until chunk size OR 100ms time limit
+    while (index < data.length && 
+           chunkResults.length < chunkSize && 
+           (Date.now() - startTime) < 100) {
+      results.push(processor(data[index], index));
+      index++;
+    }
+    
+    // Update status with progress
+    var progress = Math.round((index / data.length) * 100);
+    this.updateStatus('Processing... ' + progress + '%');
+    
+    // Yield to UI or complete
+    if (index >= data.length) {
+      onComplete(results);
+    } else {
+      setTimeout(processChunk, 10); // 10ms yield
+    }
+  }
+  
+  processChunk();
+}</code></pre>
+
+        <p><strong>Critical Parameters:</strong></p>
+        <ul>
+            <li><code>chunkSize</code>: Items per iteration (50 for suggestions, 20 for XML transforms)</li>
+            <li><code>100ms time limit</code>: Prevents any single chunk from blocking UI</li>
+            <li><code>10ms yield</code>: Gives browser time to paint, handle events</li>
+        </ul>
+
+        <h4>Where Chunking is Applied</h4>
+
+        <p><strong>Suggestion Analysis (Phase 1):</strong></p>
+        <pre><code>analyzeSuggestionsChunked(documentXml, callback) {
+  var xmlChunks = documentXml.match(/<w:(?:ins|del)[^>]*>[\s\S]*?<\/w:(?:ins|del)>/g);
+  
+  this.chunkProcess(xmlChunks, 50, function(chunk) {
+    return this.suggestionDetector.parseSuggestionElement(chunk);
+  }, callback);
+}</code></pre>
+
+        <p><strong>XML Transformation (Phase 2):</strong></p>
+        <pre><code>transformXmlChunked(callback) {
+  var suggestions = this.workflowData.phase1.suggestions;
+  var processed = 0;
+  
+  function processNextChunk() {
+    var chunkSize = 20;
+    
+    // Transform chunk of suggestions
+    for (var i = processed; i < processed + chunkSize; i++) {
+      transformedXml = xmlTransformer.applySuggestionMarkup(transformedXml, suggestions[i]);
+    }
+    
+    processed += chunkSize;
+    this.updateStatus('Transforming... ' + Math.round((processed/suggestions.length)*100) + '%');
+    
+    if (processed < suggestions.length) {
+      setTimeout(processNextChunk, 20); // Yield
+    } else {
+      callback(transformedXml);
+    }
+  }
+}</code></pre>
+
+        <h3>3. Server Call Patterns with Status Updates</h3>
+
+        <p><strong>Pattern for Long-Running Server Calls:</strong></p>
+        <pre><code>exportDocument(callback) {
+  var callId = 'export_' + Date.now();
+  this.activeServerCalls.add(callId);
+  
+  // Rotating status messages during wait
+  var messages = [
+    'Exporting document to DOCX...',
+    'Converting Google Doc format...',
+    'Packaging document structure...'
+  ];
+  var msgIdx = 0;
+  
+  var statusInterval = setInterval(function() {
+    if (this.activeServerCalls.has(callId)) {
+      this.updateStatus(messages[msgIdx % messages.length]);
+      msgIdx++;
+    } else {
+      clearInterval(statusInterval);
+    }
+  }.bind(this), 1500);
+  
+  // Timeout + Google Script call handlers...
+}</code></pre>
+
+        <p><strong>Key Elements:</strong></p>
+        <ol>
+            <li>Unique call ID for tracking</li>
+            <li>Rotating status messages (shows activity, prevents "frozen" appearance)</li>
+            <li>Timeout protection</li>
+            <li>Cleanup of intervals/timeouts on completion/failure</li>
+        </ol>
+
+        <h2>Development Guidelines for Future AI</h2>
+
+        <h3>Adding New Status Messages</h3>
+        <p>Just call <code>updateStatus()</code> anywhere in workflow-controller.js:</p>
+        <pre><code>this.updateStatus('Specific operation detail here (123KB)');</code></pre>
+        <p>The event system handles routing to the active step automatically.</p>
+
+        <h3>Adding New Chunked Operations</h3>
+        <p>If you need to process a large array or string:</p>
+        <pre><code>this.chunkProcess(
+  dataArray,           // Data to process
+  50,                  // Chunk size (tune based on operation cost)
+  function(item, idx) { // Processor function
+    return processItem(item);
+  },
+  function(results) {  // Completion callback
+    // Handle results
+  }
+);</code></pre>
+
+        <h3>Adding New Workflow States</h3>
+        <div class="callout callout-warning">
+            <div class="callout-title">If adding a new state:</div>
+            <ol>
+                <li>Add to <code>WorkflowStates</code> enum (workflow-controller.js)</li>
+                <li>Add to state→step mapping (workflow-ui.js → <code>getActiveStepForState()</code>)</li>
+                <li>Add state transition logic (workflow-controller.js → phase execution)</li>
+                <li>Add UI update logic (workflow-ui.js → <code>updateProgressTracker()</code>)</li>
+            </ol>
+        </div>
+
+        <h3>Performance Tuning</h3>
+        <p>If processing is too slow/fast:</p>
+        <ul>
+            <li>Adjust <code>chunkSize</code> (currently 20-50 depending on operation)</li>
+            <li>Adjust <code>yield delay</code> (currently 10-20ms)</li>
+            <li>Adjust <code>time limit</code> (currently 100ms max per chunk)</li>
+        </ul>
+        <p>Larger chunks = faster but riskier (may freeze)<br>
+        Smaller chunks = slower but smoother</p>
+
+        <h2>Testing & Debugging</h2>
+
+        <h3>Verify Chunking Works</h3>
+        <p>Test with large document (500+ pages, 500+ suggestions):</p>
+        <ol>
+            <li>Browser should NEVER freeze - can scroll, click during processing</li>
+            <li>Status messages should update every 1-2 seconds</li>
+            <li>Progress percentages should appear during chunked operations</li>
+        </ol>
+
+        <h3>Debug Hangs</h3>
+        <p>If workflow hangs:</p>
+        <ol>
+            <li>Check debug log - last status message shows where it stopped</li>
+            <li>Check browser console - look for errors during chunk processing</li>
+            <li>Check active step - shows which phase is stuck</li>
+            <li>Check <code>activeServerCalls</code> Set - shows pending server operations</li>
+        </ol>
+
+        <h3>Status Not Appearing?</h3>
+        <ol>
+            <li>Verify <code>workflowStatusUpdate</code> event is emitting (console.log in updateStatus)</li>
+            <li>Verify UI is listening (check <code>setupEventListeners</code> in workflow-ui.js)</li>
+            <li>Verify state mapping (check <code>getActiveStepForState</code> returns valid index)</li>
+            <li>Check DOM - ensure <code>#step-{index}-status</code> elements exist</li>
+        </ol>
+
+        <h2>Files Changed</h2>
+        <div class="file-list">
+            <ul>
+                <li>workflow-controller.js - Added true chunking, detailed status updates</li>
+                <li>workflow-ui.js - Removed status blaster, added status routing to active steps</li>
+            </ul>
+        </div>
+
+        <h2>Why This Architecture</h2>
+
+        <div class="callout callout-success">
+            <p><strong>Event-driven status routing:</strong></p>
+            <ul>
+                <li>Decouples controller from UI implementation</li>
+                <li>Allows multiple UI listeners (could add debug panel, etc.)</li>
+                <li>Status updates work even if UI components change</li>
+            </ul>
+        </div>
+
+        <div class="callout callout-success">
+            <p><strong>Chunked processing:</strong></p>
+            <ul>
+                <li>Prevents 30-second browser hangs that block Google Docs</li>
+                <li>Maintains responsive UI for better UX</li>
+                <li>Provides progress feedback during long operations</li>
+            </ul>
+        </div>
+
+        <div class="callout callout-success">
+            <p><strong>Rotating status messages during server calls:</strong></p>
+            <ul>
+                <li>Shows system is alive during network wait</li>
+                <li>Prevents user confusion ("is it frozen or working?")</li>
+                <li>Provides diagnostic info if operation times out</li>
+            </ul>
+        </div>
+
+        <div class="callout callout-warning">
+            <div class="callout-title">⚠️ Critical</div>
+            This architecture is critical for production stability - do not remove chunking or status routing without replacement anti-freeze mechanism.
+        </div>
+
+        <a href="https://sites.google.com/view/migopeditor/home/start/architecture" class="back-link">← Back to Architecture</a>
+    </div>
+</body>
+</html>
