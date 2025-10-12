@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta Decorator: When AI Should Create Decorators</title>
+    <style>
+        :root {
+            --primary: #C8102E;
+            --primary-dark: #9A0826;
+            --text: #2d3748;
+            --text-light: #718096;
+            --bg: #ffffff;
+            --bg-light: #f7fafc;
+            --border: #e2e8f0;
+            --code-bg: #1a202c;
+            --code-text: #e2e8f0;
+            --success: #48bb78;
+            --warning: #ed8936;
+            --info: #3182ce;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg-light);
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: var(--bg);
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        header {
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+        
+        .meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .meta-label {
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        h2 {
+            color: var(--primary-dark);
+            font-size: 1.5rem;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        h3 {
+            color: var(--text);
+            font-size: 1.2rem;
+            margin-top: 25px;
+            margin-bottom: 12px;
+        }
+        
+        h4 {
+            color: var(--text);
+            font-size: 1.05rem;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        p {
+            margin-bottom: 15px;
+        }
+        
+        ul, ol {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        code {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid var(--primary);
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .callout {
+            padding: 15px 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+        
+        .callout-warning {
+            background: #fffaf0;
+            border-color: var(--warning);
+            color: #744210;
+        }
+        
+        .callout-info {
+            background: #ebf8ff;
+            border-color: var(--info);
+            color: #2c5282;
+        }
+        
+        .callout-success {
+            background: #f0fff4;
+            border-color: var(--success);
+            color: #22543d;
+        }
+        
+        .callout-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+        
+        .checklist {
+            background: var(--bg-light);
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        .checklist li {
+            list-style: none;
+            padding-left: 30px;
+            position: relative;
+        }
+        
+        .checklist li:before {
+            content: "□";
+            position: absolute;
+            left: 0;
+            font-size: 1.3em;
+            color: var(--primary);
+        }
+        
+        .example-box {
+            background: var(--bg-light);
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .example-box h4 {
+            margin-top: 0;
+        }
+        
+        strong {
+            color: var(--primary-dark);
+        }
+        
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 10px 20px;
+            background: var(--primary);
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+        }
+        
+        .back-link:hover {
+            background: var(--primary-dark);
+            text-decoration: none;
+        }
+        
+        .decision-tree {
+            background: var(--bg-light);
+            padding: 20px;
+            border-radius: 6px;
+            border: 2px solid var(--primary);
+            margin: 20px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Meta Decorator: When AI Should Create Decorators</h1>
+            <div class="meta">
+                <div class="meta-item">
+                    <span class="meta-label">Date:</span>
+                    <span>2025-10-04</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Author:</span>
+                    <span>Claude (Sonnet 4.5)</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Context:</span>
+                    <span>Self-documenting practice for AI-to-AI knowledge transfer</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="callout callout-info">
+            <div class="callout-title">Core Principle</div>
+            <p><strong>After every implementation, ask yourself:</strong><br>
+            <em>"Would my successor AI understand this code without explanation?"</em></p>
+            <p>If NO → Create a decorator immediately.</p>
+        </div>
+
+        <h2>When to Create Architecture Decorators</h2>
+
+        <p>Create an architecture decorator when you've implemented:</p>
+
+        <h3>1. Non-Obvious Event Flows</h3>
+        <ul>
+            <li>Custom event systems that route data between components</li>
+            <li>Event-driven architectures where cause→effect isn't clear from code alone</li>
+            <li>Pub/sub patterns, observers, or custom messaging</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p>Status routing system where events flow Controller → UI with state-based routing logic.</p>
+        </div>
+
+        <h3>2. Performance-Critical Patterns</h3>
+        <ul>
+            <li>Anti-freeze mechanisms (chunking, yielding, throttling)</li>
+            <li>Optimizations that prevent browser/server overload</li>
+            <li>Any code where removing it would cause production failure</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p><code>chunkProcess()</code> method that prevents browser freeze - critical for large documents.</p>
+        </div>
+
+        <h3>3. Load-Bearing Logic</h3>
+        <ul>
+            <li>Routing tables, state machines, or mapping logic</li>
+            <li>Code that breaks if not maintained correctly</li>
+            <li>Magic numbers with specific reasons (chunk size=50, delay=100ms)</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p><code>getActiveStepForState()</code> mapping table - every new state must be added here.</p>
+        </div>
+
+        <h3>4. Cross-Module Dependencies</h3>
+        <ul>
+            <li>How modules communicate or depend on each other</li>
+            <li>Initialization order requirements</li>
+            <li>Shared state or singleton patterns</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p>Bootstrap system that loads modules in specific order, or WorkflowController that depends on Detection, Xml, Docx modules.</p>
+        </div>
+
+        <h3>5. Gotchas & Pitfalls</h3>
+        <ul>
+            <li>Code that looks like it should work one way but actually works differently</li>
+            <li>Edge cases with specific handling requirements</li>
+            <li>Common mistakes future developers might make</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p>Browser storage APIs that DON'T work in Claude artifacts environment.</p>
+        </div>
+
+        <h2>When to Create Feature/Implementation Decorators</h2>
+
+        <p>Create a feature decorator when you've built:</p>
+
+        <h3>1. Complex User Workflows</h3>
+        <ul>
+            <li>Multi-step processes with state transitions</li>
+            <li>User decision points with different paths</li>
+            <li>Workflows that require specific sequencing</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p>3-phase MIGOP workflow with pause points for versioning.</p>
+        </div>
+
+        <h3>2. Integration Points</h3>
+        <ul>
+            <li>How code interacts with external systems (Google APIs, server endpoints)</li>
+            <li>Authentication, permission, or access patterns</li>
+            <li>Data format transformations between systems</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p>Google Apps Script bridge for server calls, DOCX↔XML transformations.</p>
+        </div>
+
+        <h3>3. Non-Standard Implementations</h3>
+        <ul>
+            <li>Solutions that don't follow typical patterns</li>
+            <li>Workarounds for platform limitations</li>
+            <li>Custom algorithms or data structures</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p>Dynamic module loading from GitHub raw URLs with cache-busting.</p>
+        </div>
+
+        <h3>4. Configuration or Extension Points</h3>
+        <ul>
+            <li>How to add new features without breaking existing code</li>
+            <li>Plugin architectures or hook systems</li>
+            <li>Configuration schemas or option structures</li>
+        </ul>
+        <div class="example-box">
+            <h4>Example:</h4>
+            <p>Bootstrap JSON config for adding new modules to load order.</p>
+        </div>
+
+        <h2>Decorator Quality Checklist</h2>
+
+        <div class="checklist">
+            <p><strong>A good decorator must:</strong></p>
+            <ul>
+                <li><strong>Target AI readers</strong> - Not end users, not human developers, but your successor AI</li>
+                <li><strong>Explain WHY</strong> - Not just what the code does, but why it exists</li>
+                <li><strong>Show examples</strong> - Include code snippets demonstrating the pattern</li>
+                <li><strong>Identify load-bearing logic</strong> - Mark what must be preserved</li>
+                <li><strong>Provide failure modes</strong> - Explain what breaks if this is removed/changed</li>
+                <li><strong>Include testing guidance</strong> - How to verify the implementation works</li>
+                <li><strong>List affected files</strong> - Where this pattern is implemented</li>
+            </ul>
+        </div>
+
+        <h2>Decorator Template</h2>
+
+        <pre><code># Decorator: [Brief Title]
+
+**Date:** YYYY-MM-DD  
+**Author:** Claude (Model Version)  
+**Context:** [What problem does this solve?]  
+**Parent Page:** [URL to related KG page]
+
+---
+
+## Problem Context
+[What was broken or missing? Why did this need to exist?]
+
+---
+
+## Solution Architecture
+[Technical explanation with diagrams if needed]
+
+### Code Patterns
+[Actual code snippets showing implementation]
+
+### Load-Bearing Logic
+[What MUST be preserved - mark clearly]
+
+---
+
+## Development Guidelines for Future AI
+
+### Adding [Feature X]
+[Step-by-step instructions]
+
+### Modifying [Component Y]
+[What to watch out for]
+
+### Debugging [Problem Z]
+[How to diagnose and fix]
+
+---
+
+## Files Changed
+- file1.js - [what changed]
+- file2.js - [what changed]
+
+## Why This Architecture
+[Justify design decisions so future AI doesn't undo them]</code></pre>
+
+        <h2>Self-Check Before Finishing</h2>
+
+        <div class="decision-tree">
+After implementing any feature, run this checklist:
+
+1. Is there hidden complexity?
+   → If YES, create decorator explaining the complexity
+
+2. Could this be accidentally broken?
+   → If YES, create decorator marking load-bearing parts
+
+3. Would I understand this in 6 months?
+   → If NO, create decorator explaining the logic
+
+4. Are there non-obvious dependencies?
+   → If YES, create decorator documenting them
+
+5. Is there a "gotcha" or common mistake?
+   → If YES, create decorator warning about it
+
+If you answered YES to any question → CREATE A DECORATOR NOW
+        </div>
+
+        <div class="callout callout-warning">
+            <div class="callout-title">⚠️ Critical Rule</div>
+            <p>Create decorators <strong>immediately after implementation</strong>, not later. Context is fresh and details are accurate.</p>
+        </div>
+
+        <h2>Integration with Knowledge Graph</h2>
+
+        <h3>Decorator Placement Rules</h3>
+
+        <ol>
+            <li><strong>Architecture decorators</strong> → Add to architecture page</li>
+            <li><strong>Feature decorators</strong> → Add to specific feature pages (workflow, version-manager, etc.)</li>
+            <li><strong>Meta/process decorators</strong> → Add to decorator pattern guide page</li>
+        </ol>
+
+        <h3>Decorator Format on Google Sites</h3>
+
+        <p>Add to the <strong>Decorators</strong> section on the page (always at the bottom):</p>
+
+        <pre><code>Decorators:
+1. [Date] - [Title] - [One-line summary]
+   Link: [URL to full decorator if external] or [inline text]</code></pre>
+
+        <p>Older decorators stay visible - they provide historical context for evolution of the system.</p>
+
+        <h2>Examples of GOOD Decorators (This Session)</h2>
+
+        <div class="callout callout-success">
+            <p><strong>✅ "V3 Status Routing & Anti-Freeze Architecture"</strong></p>
+            <ul>
+                <li>Explains non-obvious event flow</li>
+                <li>Documents load-bearing state mapping</li>
+                <li>Provides debugging guidance</li>
+                <li>Shows why chunking is critical</li>
+            </ul>
+        </div>
+
+        <div class="callout callout-success">
+            <p><strong>✅ "When AI Should Create Decorators" (this document)</strong></p>
+            <ul>
+                <li>Meta-documentation for process itself</li>
+                <li>Helps future AI know when to document</li>
+                <li>Provides templates and checklists</li>
+            </ul>
+        </div>
+
+        <h2>Examples of MISSING Decorators (Need to Create)</h2>
+
+        <div class="callout callout-warning">
+            <p><strong>❌ Bootstrap Loading Sequence</strong></p>
+            <ul>
+                <li>How modules load in order</li>
+                <li>Why order matters</li>
+                <li>What breaks if order changes</li>
+            </ul>
+        </div>
+
+        <div class="callout callout-warning">
+            <p><strong>❌ Version Number Generation Logic</strong></p>
+            <ul>
+                <li>Format: 7:A:25:10:04:14:44:05</li>
+                <li>What each segment means</li>
+                <li>Why this specific format</li>
+            </ul>
+        </div>
+
+        <div class="callout callout-warning">
+            <p><strong>❌ XML Transformation Pipeline</strong></p>
+            <ul>
+                <li>How suggestions → visual markup</li>
+                <li>What XML elements change</li>
+                <li>Why we can't just regex replace</li>
+            </ul>
+        </div>
+
+        <p><strong>These should be created as decorators since they contain non-obvious complexity.</strong></p>
+
+        <h2>Final Principle</h2>
+
+        <div class="callout callout-info">
+            <div class="callout-title">Documentation is Code</div>
+            <p>When you write code, you're communicating with:</p>
+            <ol>
+                <li><strong>The computer</strong> (syntax, logic)</li>
+                <li><strong>Future AI</strong> (architecture, rationale)</li>
+            </ol>
+            <p>Decorators serve purpose #2. Create them proactively, not reactively.</p>
+        </div>
+
+        <a href="https://sites.google.com/view/migopeditor/home/start/decorator" class="back-link">← Back to Decorator Guide</a>
+    </div>
+</body>
+</html>
