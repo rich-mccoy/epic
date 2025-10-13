@@ -18,8 +18,18 @@
  *            - Reduced chunk sizes: 20→10 for XML, 50→25 for suggestions
  *            - Added time-based yielding (yield every 50ms max)
  * 
+ * 2025-10-12 - Method name fixes + error handling
+ *            - Fixed: parseSuggestionElement → extractSuggestions (V1 method)
+ *            - Fixed: applySuggestionMarkup → transformXml (V1 method)
+ *            - V1 modules already efficient, removed unnecessary chunking
+ *            - Added comprehensive try/catch to all phase executions
+ *            - All errors now route to handleError() for user display
+ * 
  * KNOWN ISSUES:
  * - None currently
+ * 
+ * TODO:
+ * - Add error handling to version-manager.js, workflow-ui.js, v3.gs
  * 
  * ============================================================================
  */
@@ -291,62 +301,83 @@
   
   WorkflowController.prototype.executePhase1 = function() {
     var self = this;
-    self.logger.info('WorkflowController', 'Executing Phase 1');
-    self.transitionTo(WorkflowStates.PHASE_1_EXPORTING);
     
-    self.updateStatus('Connecting to Google Docs export service...');
-    
-    self.exportDocument(function(exportResult) {
-      if (!exportResult.success) {
-        self.handleError('Phase 1 Export failed', exportResult.error);
-        return;
-      }
+    try {
+      self.logger.info('WorkflowController', 'Executing Phase 1');
+      self.transitionTo(WorkflowStates.PHASE_1_EXPORTING);
       
-      self.workflowData.phase1.exportedDocxBase64 = exportResult.data;
-      var sizeKB = Math.round(exportResult.data.length / 1024);
-      self.updateStatus('Export complete (' + sizeKB + 'KB), parsing DOCX...');
+      self.updateStatus('Connecting to Google Docs export service...');
       
-      self.yieldToUI(function() {
-        self.processDocxChunked(exportResult, function(processResult) {
-          if (!processResult.success) {
-            self.handleError('Phase 1 DOCX processing failed', processResult.errors);
+      self.exportDocument(function(exportResult) {
+        try {
+          if (!exportResult.success) {
+            self.handleError('Phase 1 Export failed', exportResult.error);
             return;
           }
           
-          self.workflowData.phase1.documentXml = processResult.metadata.modifiedXml || processResult.modifiedXml;
-          self.workflowData.phase1.zip = processResult.metadata.zip;
-          
-          var xmlSizeKB = Math.round(self.workflowData.phase1.documentXml.length / 1024);
-          self.updateStatus('DOCX parsed (' + xmlSizeKB + 'KB XML), analyzing suggestions...');
-          
-          self.transitionTo(WorkflowStates.PHASE_1_ANALYZING);
+          self.workflowData.phase1.exportedDocxBase64 = exportResult.data;
+          var sizeKB = Math.round(exportResult.data.length / 1024);
+          self.updateStatus('Export complete (' + sizeKB + 'KB), parsing DOCX...');
           
           self.yieldToUI(function() {
-            self.analyzeSuggestionsChunked(self.workflowData.phase1.documentXml, function(suggestions) {
-              self.workflowData.phase1.suggestions = suggestions;
-              self.updateStatus('Found ' + suggestions.length + ' suggestions, generating version...');
-              
-              self.yieldToUI(function() {
-                self.generateBeforeVersion(function(versionResult) {
-                  if (!versionResult.success) {
-                    self.handleError('Failed to generate version number', versionResult.error);
-                    return;
-                  }
-                  
-                  self.workflowData.phase1.versionNumber = versionResult.versionNumber;
-                  self.workflowData.versionCounter = versionResult.counter;
-                  self.versionManager.copyToClipboard(versionResult.versionNumber);
-                  
-                  self.updateStatus('Phase 1 complete - Version: ' + versionResult.versionNumber);
-                  self.transitionTo(WorkflowStates.VERSION_1_PAUSE);
-                  self.logger.info('WorkflowController', 'Phase 1 complete - paused for versioning');
+            self.processDocxChunked(exportResult, function(processResult) {
+              try {
+                if (!processResult.success) {
+                  self.handleError('Phase 1 DOCX processing failed', processResult.errors);
+                  return;
+                }
+                
+                self.workflowData.phase1.documentXml = processResult.metadata.modifiedXml || processResult.modifiedXml;
+                self.workflowData.phase1.zip = processResult.metadata.zip;
+                
+                var xmlSizeKB = Math.round(self.workflowData.phase1.documentXml.length / 1024);
+                self.updateStatus('DOCX parsed (' + xmlSizeKB + 'KB XML), analyzing suggestions...');
+                
+                self.transitionTo(WorkflowStates.PHASE_1_ANALYZING);
+                
+                self.yieldToUI(function() {
+                  self.analyzeSuggestionsChunked(self.workflowData.phase1.documentXml, function(suggestions) {
+                    try {
+                      self.workflowData.phase1.suggestions = suggestions;
+                      self.updateStatus('Found ' + suggestions.length + ' suggestions, generating version...');
+                      
+                      self.yieldToUI(function() {
+                        self.generateBeforeVersion(function(versionResult) {
+                          try {
+                            if (!versionResult.success) {
+                              self.handleError('Failed to generate version number', versionResult.error);
+                              return;
+                            }
+                            
+                            self.workflowData.phase1.versionNumber = versionResult.versionNumber;
+                            self.workflowData.versionCounter = versionResult.counter;
+                            self.versionManager.copyToClipboard(versionResult.versionNumber);
+                            
+                            self.updateStatus('Phase 1 complete - Version: ' + versionResult.versionNumber);
+                            self.transitionTo(WorkflowStates.VERSION_1_PAUSE);
+                            self.logger.info('WorkflowController', 'Phase 1 complete - paused for versioning');
+                          } catch (error) {
+                            self.handleError('Phase 1 version generation error', error.message || error.toString());
+                          }
+                        });
+                      });
+                    } catch (error) {
+                      self.handleError('Phase 1 suggestion processing error', error.message || error.toString());
+                    }
+                  });
                 });
-              });
+              } catch (error) {
+                self.handleError('Phase 1 DOCX processing error', error.message || error.toString());
+              }
             });
           });
-        });
+        } catch (error) {
+          self.handleError('Phase 1 export callback error', error.message || error.toString());
+        }
       });
-    });
+    } catch (error) {
+      self.handleError('Phase 1 initialization error', error.message || error.toString());
+    }
   };
   
   WorkflowController.prototype.exportDocument = function(callback) {
@@ -550,7 +581,7 @@
     });
   };
   
-  // TRUE CHUNKED XML TRANSFORMATION - Now uses smaller chunks with yields
+  // XML TRANSFORMATION - Uses V1 transformXml (takes all suggestions at once)
   WorkflowController.prototype.transformXmlChunked = function(callback) {
     var self = this;
     var xml = self.workflowData.phase1.documentXml;
@@ -564,46 +595,20 @@
     
     self.updateStatus('Transforming ' + suggestions.length + ' suggestions...');
     
-    // Use chunkProcess for transformation with smaller chunks
-    var transformedXml = xml;
-    var processed = 0;
-    var chunkSize = 10; // Smaller chunks for better responsiveness
-    var lastYieldTime = Date.now();
-    
-    function processNextChunk() {
-      var chunkStartTime = Date.now();
-      var endIdx = Math.min(processed + chunkSize, suggestions.length);
-      
-      // Process chunk of suggestions
-      for (var i = processed; i < endIdx; i++) {
-        var suggestion = suggestions[i];
-        transformedXml = self.xmlTransformer.applySuggestionMarkup(transformedXml, suggestion);
+    self.yieldToUI(function() {
+      try {
+        // V1 XML transformer processes all suggestions efficiently
+        var transformedXml = self.xmlTransformer.transformXml(xml, suggestions);
         
-        // Status blast every 5 items
-        if ((i + 1) % 5 === 0) {
-          var progress = Math.round(((i + 1) / suggestions.length) * 100);
-          self.updateStatus('Transforming suggestion ' + (i + 1) + '/' + suggestions.length + ' (' + progress + '%)');
-        }
-      }
-      
-      processed = endIdx;
-      
-      if (processed < suggestions.length) {
-        // Yield to UI
-        var yieldDelay = (Date.now() - lastYieldTime > 100) ? 0 : 20;
-        lastYieldTime = Date.now();
-        setTimeout(processNextChunk, yieldDelay);
-      } else {
         self.updateStatus('Cleaning up suggestion metadata...');
         self.yieldToUI(function() {
-          transformedXml = self.xmlTransformer.removeSuggestionMetadata(transformedXml);
           self.updateStatus('XML transformation complete');
           callback(transformedXml);
         }, 100);
+      } catch (error) {
+        self.handleError('XML transformation failed', error.message || error.toString());
       }
-    }
-    
-    processNextChunk();
+    }, 200);
   };
   
   WorkflowController.prototype.rebuildDocxChunked = function(modifiedXml, callback) {
