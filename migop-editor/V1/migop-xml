@@ -1,6 +1,6 @@
 <script>
 /**
- * migop-xml.html - XML Transformation Engine
+ * migop-xml.html - XML Transformation Engine (FIXED)
  * Depends on: migop-base.html, migop-log.html
  */
 (function() {
@@ -115,13 +115,17 @@
   XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
     this.logger.debug('XmlTransformer', 'Adding underline formatting');
     
-    var modifiedContent = xmlContent.replace(/<w:r[^>]*>([\s\S]*?)<\/w:r>/g, function(match, runContent) {
+    var modifiedContent = xmlContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
+      // Check if there's already a <w:rPr> tag
       if (runContent.indexOf('<w:rPr>') !== -1) {
-        return match.replace(/<w:rPr>/, '<w:rPr><w:u w:val="single"/>');
+        // Add underline inside existing rPr
+        return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr>/, '<w:rPr><w:u w:val="single"/>') + '</w:r>';
+      } else if (runContent.indexOf('<w:rPr/>') !== -1) {
+        // Replace self-closing rPr with one containing underline
+        return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr\/>/, '<w:rPr><w:u w:val="single"/></w:rPr>') + '</w:r>';
       } else {
-        return match.replace(/<w:r[^>]*>/, function(tag) {
-          return tag + '<w:rPr><w:u w:val="single"/></w:rPr>';
-        });
+        // Add new rPr tag with underline at the beginning of run content
+        return '<w:r' + attrs + '><w:rPr><w:u w:val="single"/></w:rPr>' + runContent + '</w:r>';
       }
     });
     
@@ -132,16 +136,22 @@
   XmlTransformer.prototype.addStrikethroughFormatting = function(xmlContent) {
     this.logger.debug('XmlTransformer', 'Adding strikethrough formatting');
     
-    var modifiedContent = xmlContent.replace(/<w:delText([^>]*)>/g, '<w:t$1>');
-    modifiedContent = modifiedContent.replace(/<\/w:delText>/g, '</w:t>');
+    // FIXED: First convert delText to regular text tags properly
+    // This ensures tag matching stays intact
+    var modifiedContent = xmlContent.replace(/<w:delText([^>]*?)>(.*?)<\/w:delText>/g, '<w:t$1>$2</w:t>');
     
-    modifiedContent = modifiedContent.replace(/<w:r[^>]*>([\s\S]*?)<\/w:r>/g, function(match, runContent) {
+    // Now add strikethrough to all runs, preserving complete tag structure
+    modifiedContent = modifiedContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
+      // Check if there's already a <w:rPr> tag
       if (runContent.indexOf('<w:rPr>') !== -1) {
-        return match.replace(/<w:rPr>/, '<w:rPr><w:strike w:val="true"/>');
+        // Add strikethrough inside existing rPr, after opening tag
+        return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr>/, '<w:rPr><w:strike w:val="true"/>') + '</w:r>';
+      } else if (runContent.indexOf('<w:rPr/>') !== -1) {
+        // Replace self-closing rPr with one containing strikethrough
+        return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr\/>/, '<w:rPr><w:strike w:val="true"/></w:rPr>') + '</w:r>';
       } else {
-        return match.replace(/<w:r[^>]*>/, function(tag) {
-          return tag + '<w:rPr><w:strike w:val="true"/></w:rPr>';
-        });
+        // Add new rPr tag with strikethrough at the beginning of run content
+        return '<w:r' + attrs + '><w:rPr><w:strike w:val="true"/></w:rPr>' + runContent + '</w:r>';
       }
     });
     
@@ -213,6 +223,6 @@
     }
   };
   
-  console.log('[MIGOP] migop-xml.html loaded successfully');
+  console.log('[MIGOP] migop-xml.html loaded successfully (FIXED VERSION)');
 })();
 </script>
