@@ -188,12 +188,18 @@
     var originalLength = xmlContent.length;
     
     // Remove the <w:ins> and <w:del> wrapper tags but preserve their content
-    var cleanedXml = xmlContent
-      .replace(/<w:ins[^>]*>/g, '')
-      .replace(/<\/w:ins>/g, '')
-      .replace(/<w:del[^>]*>/g, '')
-      .replace(/<\/w:del>/g, '');
-    
+  //  var cleanedXml = xmlContent
+  //    .replace(/<w:ins[^>]*>/g, '')
+  //    .replace(/<\/w:ins>/g, '')
+  //    .replace(/<w:del[^>]*>/g, '')
+  //    .replace(/<\/w:del>/g, '');
+
+// AI thinks above code is wrong.
+var cleanedXml = xmlContent
+  .replace(/<w:ins[^>]*>/g, '')
+  .replace(/<\/w:ins>/g, '');
+
+
     this.logger.debug('XmlTransformer', 'Cleanup completed', {
       originalLength: originalLength,
       cleanedLength: cleanedXml.length,
