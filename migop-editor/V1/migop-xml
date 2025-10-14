@@ -121,27 +121,27 @@
     }
   };
   
-  XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
-    this.logger.debug('XmlTransformer', 'Adding underline formatting');
-    
-    // Add underline formatting to all <w:r> runs
-    var modifiedContent = xmlContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
-      // Check if there's already a <w:rPr> tag
-      if (runContent.indexOf('<w:rPr>') !== -1) {
-        // Add underline inside existing rPr (after the opening tag)
-        return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr>/, '<w:rPr><w:u w:val="single"/>') + '</w:r>';
-      } else if (runContent.indexOf('<w:rPr/>') !== -1) {
-        // Replace self-closing rPr with one containing underline
-        return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr\/>/, '<w:rPr><w:u w:val="single"/></w:rPr>') + '</w:r>';
-      } else {
-        // Add new rPr tag with underline at the beginning of run content
-        return '<w:r' + attrs + '><w:rPr><w:u w:val="single"/></w:rPr>' + runContent + '</w:r>';
-      }
-    });
-    
-    this.logger.debug('XmlTransformer', 'Underline formatting applied');
-    return modifiedContent;
-  };
+XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
+  this.logger.debug('XmlTransformer', 'Adding underline formatting');
+  
+  // Add underline formatting to all <w:r> runs
+  var modifiedContent = xmlContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
+    // Check if there's already a <w:rPr> tag with content
+    if (runContent.indexOf('<w:rPr>') !== -1 && runContent.indexOf('</w:rPr>') !== -1) {
+      // Add underline BEFORE the closing </w:rPr> tag
+      return '<w:r' + attrs + '>' + runContent.replace(/<\/w:rPr>/, '<w:u w:val="single"/></w:rPr>') + '</w:r>';
+    } else if (runContent.indexOf('<w:rPr/>') !== -1) {
+      // Replace self-closing rPr with one containing underline
+      return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr\/>/, '<w:rPr><w:u w:val="single"/></w:rPr>') + '</w:r>';
+    } else {
+      // Add new rPr tag with underline at the beginning of run content
+      return '<w:r' + attrs + '><w:rPr><w:u w:val="single"/></w:rPr>' + runContent + '</w:r>';
+    }
+  });
+  
+  this.logger.debug('XmlTransformer', 'Underline formatting applied');
+  return modifiedContent;
+};
   
   XmlTransformer.prototype.addStrikethroughFormatting = function(xmlContent) {
     this.logger.debug('XmlTransformer', 'Adding strikethrough formatting');
