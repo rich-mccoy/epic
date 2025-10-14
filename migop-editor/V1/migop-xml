@@ -1,30 +1,4 @@
-XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
-  this.logger.debug('XmlTransformer', 'Adding underline formatting');
-  
-  var modifiedContent = xmlContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
-    // Skip runs that contain field codes - don't add formatting
-    if (runContent.indexOf('<w:fldChar') !== -1 || 
-        runContent.indexOf('<w:instrText') !== -1) {
-      return match; // Return unchanged
-    }
-    
-    // Check if there's already a <w:rPr> tag with content
-    if (runContent.indexOf('<w:rPr>') !== -1 && runContent.indexOf('</w:rPr>') !== -1) {
-      return '<w:r' + attrs + '>' + runContent.replace(/<\/w:rPr>/, '<w:u w:val="single"/></w:rPr>') + '</w:r>';
-    } else if (runContent.indexOf('<w:rPr/>') !== -1) {
-      return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr\/>/, '<w:rPr><w:u w:val="single"/></w:rPr>') + '</w:r>';
-    } else {
-      return '<w:r' + attrs + '><w:rPr><w:u w:val="single"/></w:rPr>' + runContent + '</w:r>';
-    }
-  });
-  
-  this.logger.debug('XmlTransformer', 'Underline formatting applied');
-  return modifiedContent;
-};
-  
-  this.logger.debug('XmlTransformer', 'Underline formatting applied');
-  return modifiedContent;
-};<script>
+<script>
 /**
  * migop-xml.html - XML Transformation Engine (PROPERLY FIXED)
  * Depends on: migop-base.html, migop-log.html
