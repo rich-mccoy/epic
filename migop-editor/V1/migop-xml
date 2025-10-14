@@ -29,11 +29,24 @@
   XmlTransformer.prototype.transformXml = function(xmlContent, suggestions) {
     this.logger.info('XmlTransformer', 'Starting XML transformation', {
 
+
+
+
 XmlTransformer.prototype.repairMalformedFieldCodes = function(xmlContent) {
-  // Fix missing <w:instrText> opening tags
-  return xmlContent.replace(/(<w:r[^>]*><w:fldChar[^>]*\/>)([^<]+)(<\/w:instrText>)/g, 
-    '$1<w:instrText>$2</w:instrText>');
+  this.logger.debug('XmlTransformer', 'Repairing malformed field codes');
+  
+  // Fix missing <w:instrText> opening tags before </w:instrText> closing tags
+  var repaired = xmlContent.replace(
+    /(<w:r[^>]*><w:fldChar[^>]*\/>)([^<]+)(<\/w:instrText>)/g,
+    function(match, before, text, after) {
+      return before + '<w:instrText>' + text + '</w:instrText>';
+    }
+  );
+  
+  this.logger.debug('XmlTransformer', 'Field code repair complete');
+  return repaired;
 };
+
 
       xmlLength: xmlContent.length,
       suggestionsCount: suggestions.length
