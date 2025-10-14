@@ -20,6 +20,10 @@ XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
   
   this.logger.debug('XmlTransformer', 'Underline formatting applied');
   return modifiedContent;
+};
+  
+  this.logger.debug('XmlTransformer', 'Underline formatting applied');
+  return modifiedContent;
 };<script>
 /**
  * migop-xml.html - XML Transformation Engine (PROPERLY FIXED)
