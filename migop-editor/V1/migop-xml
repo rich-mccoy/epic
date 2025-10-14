@@ -69,28 +69,30 @@
     }
   };
   
-  XmlTransformer.prototype.processInsertion = function(xmlContent, suggestion) {
-    this.logger.debug('XmlTransformer', 'Processing insertion', {
-      text: suggestion.text.substring(0, 50),
-      author: suggestion.author
-    });
-    
-    if (!suggestion.metadata || !suggestion.metadata.fullXml || !suggestion.metadata.innerXml) {
-      this.logger.warn('XmlTransformer', 'Insertion missing required metadata');
-      return xmlContent;
-    }
-    
-    try {
-      // For insertions: add underline to the inner XML runs
-      var underlinedContent = this.addUnderlineFormatting(suggestion.metadata.innerXml);
-      var modifiedXml = xmlContent.replace(suggestion.metadata.fullXml, underlinedContent);
-      this.logger.debug('XmlTransformer', 'Insertion processed successfully');
-      return modifiedXml;
-    } catch (error) {
-      this.logger.error('XmlTransformer', 'Failed to process insertion', error);
-      return xmlContent;
-    }
-  };
+ XmlTransformer.prototype.processInsertion = function(xmlContent, suggestion) {
+  console.log('[INSERTION] Processing:', suggestion.text.substring(0, 50));
+  this.logger.debug('XmlTransformer', 'Processing insertion', {
+    text: suggestion.text.substring(0, 50),
+    author: suggestion.author
+  });
+  
+  if (!suggestion.metadata || !suggestion.metadata.fullXml || !suggestion.metadata.innerXml) {
+    console.log('[INSERTION] Missing metadata!');
+    this.logger.warn('XmlTransformer', 'Insertion missing required metadata');
+    return xmlContent;
+  }
+  
+  try {
+    console.log('[INSERTION] Calling addUnderlineFormatting');
+    var underlinedContent = this.addUnderlineFormatting(suggestion.metadata.innerXml);
+    var modifiedXml = xmlContent.replace(suggestion.metadata.fullXml, underlinedContent);
+    this.logger.debug('XmlTransformer', 'Insertion processed successfully');
+    return modifiedXml;
+  } catch (error) {
+    this.logger.error('XmlTransformer', 'Failed to process insertion', error);
+    return xmlContent;
+  }
+};
   
   XmlTransformer.prototype.processDeletion = function(xmlContent, suggestion) {
     this.logger.debug('XmlTransformer', 'Processing deletion', {
