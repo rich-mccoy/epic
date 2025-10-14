@@ -1,6 +1,6 @@
 <script>
 /**
- * migop-xml.html - XML Transformation Engine (FIXED)
+ * migop-xml.html - XML Transformation Engine (PROPERLY FIXED)
  * Depends on: migop-base.html, migop-log.html
  */
 (function() {
@@ -81,6 +81,7 @@
     }
     
     try {
+      // For insertions: add underline to the inner XML runs
       var underlinedContent = this.addUnderlineFormatting(suggestion.metadata.innerXml);
       var modifiedXml = xmlContent.replace(suggestion.metadata.fullXml, underlinedContent);
       this.logger.debug('XmlTransformer', 'Insertion processed successfully');
@@ -102,8 +103,16 @@
     }
     
     try {
+      // For deletions: add strikethrough to the runs INSIDE the <w:del> wrapper
       var strikethroughContent = this.addStrikethroughFormatting(suggestion.metadata.innerXml);
-      var modifiedXml = xmlContent.replace(suggestion.metadata.fullXml, strikethroughContent);
+      
+      // Reconstruct the full <w:del> wrapper with the formatted content
+      var newFullXml = suggestion.metadata.fullXml.replace(
+        suggestion.metadata.innerXml,
+        strikethroughContent
+      );
+      
+      var modifiedXml = xmlContent.replace(suggestion.metadata.fullXml, newFullXml);
       this.logger.debug('XmlTransformer', 'Deletion processed successfully');
       return modifiedXml;
     } catch (error) {
@@ -115,10 +124,11 @@
   XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
     this.logger.debug('XmlTransformer', 'Adding underline formatting');
     
+    // Add underline formatting to all <w:r> runs
     var modifiedContent = xmlContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
       // Check if there's already a <w:rPr> tag
       if (runContent.indexOf('<w:rPr>') !== -1) {
-        // Add underline inside existing rPr
+        // Add underline inside existing rPr (after the opening tag)
         return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr>/, '<w:rPr><w:u w:val="single"/>') + '</w:r>';
       } else if (runContent.indexOf('<w:rPr/>') !== -1) {
         // Replace self-closing rPr with one containing underline
@@ -136,15 +146,13 @@
   XmlTransformer.prototype.addStrikethroughFormatting = function(xmlContent) {
     this.logger.debug('XmlTransformer', 'Adding strikethrough formatting');
     
-    // FIXED: First convert delText to regular text tags properly
-    // This ensures tag matching stays intact
-    var modifiedContent = xmlContent.replace(/<w:delText([^>]*?)>(.*?)<\/w:delText>/g, '<w:t$1>$2</w:t>');
+    // CRITICAL: Do NOT replace <w:delText> tags - they're correct for deletions
+    // Just add strikethrough formatting to the <w:r> runs that contain them
     
-    // Now add strikethrough to all runs, preserving complete tag structure
-    modifiedContent = modifiedContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
+    var modifiedContent = xmlContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
       // Check if there's already a <w:rPr> tag
       if (runContent.indexOf('<w:rPr>') !== -1) {
-        // Add strikethrough inside existing rPr, after opening tag
+        // Add strikethrough inside existing rPr (after the opening tag)
         return '<w:r' + attrs + '>' + runContent.replace(/<w:rPr>/, '<w:rPr><w:strike w:val="true"/>') + '</w:r>';
       } else if (runContent.indexOf('<w:rPr/>') !== -1) {
         // Replace self-closing rPr with one containing strikethrough
@@ -168,7 +176,7 @@
                           .replace(/"/g, '&quot;')
                           .replace(/'/g, '&apos;');
     
-    var strikethroughXml = '<w:r><w:rPr><w:strike w:val="true"/></w:rPr><w:t>' + escapedText + '</w:t></w:r>';
+    var strikethroughXml = '<w:r><w:rPr><w:strike w:val="true"/></w:rPr><w:delText>' + escapedText + '</w:delText></w:r>';
     
     this.logger.debug('XmlTransformer', 'Strikethrough XML created');
     return strikethroughXml;
@@ -179,6 +187,7 @@
     
     var originalLength = xmlContent.length;
     
+    // Remove the <w:ins> and <w:del> wrapper tags but preserve their content
     var cleanedXml = xmlContent
       .replace(/<w:ins[^>]*>/g, '')
       .replace(/<\/w:ins>/g, '')
@@ -223,6 +232,6 @@
     }
   };
   
-  console.log('[MIGOP] migop-xml.html loaded successfully (FIXED VERSION)');
+  console.log('[MIGOP] migop-xml.html loaded successfully (PROPERLY FIXED)');
 })();
 </script>
