@@ -124,12 +124,19 @@
 XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
   this.logger.debug('XmlTransformer', 'Adding underline formatting');
   
+  var skippedCount = 0;
+  var modifiedCount = 0;
+  
   var modifiedContent = xmlContent.replace(/<w:r([^>]*)>([\s\S]*?)<\/w:r>/g, function(match, attrs, runContent) {
     // Skip runs that contain field codes - don't add formatting
     if (runContent.indexOf('<w:fldChar') !== -1 || 
         runContent.indexOf('<w:instrText') !== -1) {
+      skippedCount++;
+      console.log('[SKIP] Field code detected in run:', match.substring(0, 100));
       return match; // Return unchanged
     }
+    
+    modifiedCount++;
     
     // Check if there's already a <w:rPr> tag with content
     if (runContent.indexOf('<w:rPr>') !== -1 && runContent.indexOf('</w:rPr>') !== -1) {
@@ -141,10 +148,12 @@ XmlTransformer.prototype.addUnderlineFormatting = function(xmlContent) {
     }
   });
   
-  this.logger.debug('XmlTransformer', 'Underline formatting applied');
+  console.log('[UNDERLINE] Skipped: ' + skippedCount + ' runs, Modified: ' + modifiedCount + ' runs');
+  this.logger.debug('XmlTransformer', 'Underline formatting applied', {skipped: skippedCount, modified: modifiedCount});
   return modifiedContent;
 };
-  
+
+
   XmlTransformer.prototype.addStrikethroughFormatting = function(xmlContent) {
     this.logger.debug('XmlTransformer', 'Adding strikethrough formatting');
     
