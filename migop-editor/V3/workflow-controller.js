@@ -533,6 +533,16 @@
             var blobSizeKB = Math.round(rebuildResult.docxBlob.size / 1024);
             self.updateStatus('DOCX rebuilt (' + blobSizeKB + 'KB), converting to base64...');
             
+            // Download the rebuilt DOCX for debugging
+var link = document.createElement('a');
+link.href = URL.createObjectURL(rebuildResult.docxBlob);
+link.download = 'rebuilt_debug.docx';
+document.body.appendChild(link);
+link.click();
+document.body.removeChild(link);
+URL.revokeObjectURL(link.href);
+
+self.logger.debug('WorkflowController', 'DOCX downloaded for debugging');
             self.yieldToUI(function() {
               self.docxProcessor.convertBlobToBase64(rebuildResult.docxBlob, function(conversionResult) {
                 if (!conversionResult.success) {
