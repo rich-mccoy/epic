@@ -28,11 +28,19 @@
   
   XmlTransformer.prototype.transformXml = function(xmlContent, suggestions) {
     this.logger.info('XmlTransformer', 'Starting XML transformation', {
+
+XmlTransformer.prototype.repairMalformedFieldCodes = function(xmlContent) {
+  // Fix missing <w:instrText> opening tags
+  return xmlContent.replace(/(<w:r[^>]*><w:fldChar[^>]*\/>)([^<]+)(<\/w:instrText>)/g, 
+    '$1<w:instrText>$2</w:instrText>');
+};
+
       xmlLength: xmlContent.length,
       suggestionsCount: suggestions.length
     });
     
     var modifiedXml = xmlContent;
+modifiedXml = this.repairMalformedFieldCodes(modifiedXml);
     this.stats.totalTransformations++;
     
     try {
